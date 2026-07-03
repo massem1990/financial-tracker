@@ -1,0 +1,18 @@
+{
+  "9fec222d-41aa-4e8a-a10e-f0e18087b956": {
+    "iban": "NL25 ABNA 0885 9659 06",
+    "name": "Monthly Payments"
+  },
+  "abd3956b-20ed-4b80-89f3-11a4c231167d": {
+    "iban": "NL38 ABNA 0550 9088 54",
+    "name": "Mahmoud Personal"
+  },
+  "57c1345d-e265-46f0-bb15-176cf6aa6d4b": {
+    "iban": "NL87 ABNA 0891 2168 55",
+    "name": "Shopping Needs"
+  },
+  "1a8ad7e2-6267-47c1-855a-b76300b36b99": {
+    "iban": "NL24 ABNA 0124 1032 86",
+    "name": "Shopping Wants"
+  }
+}

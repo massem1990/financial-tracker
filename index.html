@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0d1312" />
+    <title>Financial Tracker</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <section class="auth-shell" id="authView" aria-label="Sign in">
+      <form class="auth-card" id="loginForm">
+        <div>
+          <p class="eyebrow">Private finances</p>
+          <h1>Sign in</h1>
+        </div>
+        <label class="auth-field">
+          <span>Login</span>
+          <input id="loginName" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required />
+        </label>
+        <label class="auth-field">
+          <span>Password</span>
+          <input id="loginPassword" type="password" autocomplete="current-password" required />
+        </label>
+        <p class="auth-error hidden" id="loginError" role="alert">Nope. The vault remains dramatically unimpressed.</p>
+        <button class="primary-button" type="submit">Unlock</button>
+      </form>
+    </section>
+
+    <main class="app-shell hidden" id="appView">
+      <header class="top-bar">
+        <div>
+          <p class="eyebrow">Personal finance</p>
+          <h1>Finances</h1>
+        </div>
+        <button class="primary-button fetch-button" id="fetchTransactionsButton" type="button">Fetch</button>
+      </header>
+
+      <section class="summary-grid" aria-label="Summary">
+        <article class="summary-card">
+          <span class="summary-label">Spent</span>
+          <strong id="spentTotal">€0.00</strong>
+        </article>
+        <article class="summary-card">
+          <span class="summary-label">Income</span>
+          <strong id="incomeTotal">€0.00</strong>
+        </article>
+        <article class="summary-card accent">
+          <span class="summary-label">Net</span>
+          <strong id="netTotal">€0.00</strong>
+        </article>
+      </section>
+
+      <nav class="view-tabs" aria-label="Views">
+        <button class="view-tab active" type="button" data-view="overview">Overview</button>
+        <button class="view-tab" type="button" data-view="trends">Trends</button>
+        <button class="view-tab" type="button" data-view="accounts">Accounts</button>
+        <button class="view-tab" type="button" data-view="categories">Categories</button>
+        <button class="view-tab" type="button" data-view="transactions">Transactions</button>
+      </nav>
+
+      <section class="controls" aria-label="Transaction filters">
+        <label class="search-field">
+          <span>Search</span>
+          <input id="searchInput" type="search" placeholder="Merchant, category, account..." autocomplete="off" />
+        </label>
+        <div class="segmented-control" role="group" aria-label="Time period">
+          <button class="segment active" type="button" data-period="all">All</button>
+          <button class="segment" type="button" data-period="month">Month</button>
+          <button class="segment" type="button" data-period="salary">Salary</button>
+          <button class="segment" type="button" data-period="week">Week</button>
+        </div>
+        <div class="salary-period-nav hidden" id="salaryPeriodNav" aria-label="Salary month navigation">
+          <button class="icon-button" id="salaryPrevButton" type="button" aria-label="Previous salary month">Prev</button>
+          <div>
+            <span>Salary month</span>
+            <strong id="salaryPeriodLabel">Current salary month</strong>
+          </div>
+          <button class="icon-button" id="salaryNextButton" type="button" aria-label="Next salary month">Next</button>
+        </div>
+      </section>
+
+      <section class="analysis-filters" aria-label="Dashboard filters">
+        <label>
+          <span>Account</span>
+          <select id="accountFilter"></select>
+        </label>
+        <label>
+          <span>Year</span>
+          <select id="yearFilter"></select>
+        </label>
+        <label>
+          <span>Month</span>
+          <select id="monthFilter"></select>
+        </label>
+        <label>
+          <span>Type</span>
+          <select id="typeFilter">
+            <option value="all">All</option>
+            <option value="Need">Need</option>
+            <option value="Want">Want</option>
+            <option value="Invest">Invest</option>
+            <option value="Income">Income</option>
+          </select>
+        </label>
+      </section>
+
+      <section class="status-panel hidden" id="statusPanel" role="status"></section>
+
+      <section class="view-section" id="overviewView" aria-label="Overview">
+        <section class="insight-grid" aria-label="Financial breakdown">
+          <article class="insight-card">
+            <span>Needs</span>
+            <strong id="needsTotal">€0.00</strong>
+            <small id="needsShare">0%</small>
+          </article>
+          <article class="insight-card">
+            <span>Wants</span>
+            <strong id="wantsTotal">€0.00</strong>
+            <small id="wantsShare">0%</small>
+          </article>
+          <article class="insight-card">
+            <span>Invest</span>
+            <strong id="investTotal">€0.00</strong>
+            <small id="investShare">0%</small>
+          </article>
+          <article class="insight-card">
+            <span>Savings</span>
+            <strong id="savingsTotal">€0.00</strong>
+            <small id="savingsShare">0%</small>
+          </article>
+        </section>
+
+        <section class="chart-section" aria-label="Expense mix">
+          <div class="section-heading">
+            <h2>Expense mix</h2>
+            <p class="muted-label" id="pieScope">Current filters</p>
+          </div>
+          <div class="pie-card">
+            <div class="expense-pie" id="expensePie" role="img" aria-label="Expense breakdown"></div>
+            <ol class="pie-legend" id="pieLegend"></ol>
+          </div>
+        </section>
+
+        <section class="budget-section" aria-label="Category ranking">
+          <div class="section-heading">
+            <h2>Category ranking</h2>
+            <label class="compact-select">
+              <span>Lens</span>
+              <select id="categoryMode">
+                <option value="all">All</option>
+                <option value="overBudget">Over budget</option>
+                <option value="noBudget">No budget</option>
+                <option value="regular">Regular</option>
+                <option value="irregular">Irregular</option>
+                <option value="actual">Actual expenses</option>
+              </select>
+            </label>
+          </div>
+          <p class="muted-label" id="rankingScope">Current filters</p>
+          <ol class="category-ranking" id="categoryRanking"></ol>
+        </section>
+      </section>
+
+      <section class="view-section hidden" id="trendsView" aria-label="Trends">
+        <div class="section-heading">
+          <h2>Category trend</h2>
+          <label class="compact-select">
+            <span>Category</span>
+            <select id="trendCategorySelect"></select>
+          </label>
+        </div>
+        <div class="trend-chart" id="trendChart"></div>
+        <ol class="monthly-list" id="monthlyList"></ol>
+      </section>
+
+      <section class="view-section hidden" id="accountsView" aria-label="Accounts">
+        <div class="section-heading">
+          <h2>Accounts</h2>
+          <p class="muted-label" id="latestAccountsScope">Latest transaction per account</p>
+        </div>
+        <ol class="account-latest-list" id="latestAccountsList"></ol>
+      </section>
+
+      <section class="view-section hidden" id="categoriesView" aria-label="Categories">
+        <div class="section-heading">
+          <h2>Manage categories</h2>
+        </div>
+        <form class="category-create" id="categoryCreateForm">
+          <label>
+            <span>Name</span>
+            <input id="newCategoryName" type="text" placeholder="e.g. Coffee" required />
+          </label>
+          <label>
+            <span>Bucket</span>
+            <input id="newCategoryBucket" type="text" placeholder="e.g. Social & Leisure" />
+          </label>
+          <label>
+            <span>Type</span>
+            <select id="newCategoryType">
+              <option value="Need">Need</option>
+              <option value="Want">Want</option>
+              <option value="Invest">Invest</option>
+              <option value="Income">Income</option>
+            </select>
+          </label>
+          <label>
+            <span>Budget</span>
+            <input id="newCategoryBudget" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0" />
+          </label>
+          <button class="primary-button" type="submit">Add category</button>
+        </form>
+        <ol class="category-editor-list" id="categoryEditorList"></ol>
+      </section>
+
+      <section class="transaction-section view-section hidden" id="transactionsView" aria-label="Transactions">
+        <div class="section-heading">
+          <h2 id="transactionCount">0 transactions</h2>
+          <div class="section-actions">
+            <button class="text-button" id="refreshButton" type="button">Refresh</button>
+          </div>
+        </div>
+        <ol class="transaction-list" id="transactionList"></ol>
+        <div class="empty-state hidden" id="emptyState">
+          <h2>No transactions found</h2>
+          <p>Try another search, or replace expenses.csv with a fresh export.</p>
+        </div>
+      </section>
+    </main>
+
+    <section class="loading-overlay hidden" id="loadingOverlay" aria-live="polite" aria-busy="true">
+      <div class="loading-card">
+        <div class="loader-ring" aria-hidden="true"></div>
+        <p class="eyebrow">Loading</p>
+        <h2 id="loadingTitle">Getting your money story</h2>
+        <p id="loadingMessage">Crunching the numbers without making them feel judged.</p>
+      </div>
+    </section>
+
+    <dialog class="category-dialog" id="categoryDialog">
+      <form method="dialog" class="settings-form">
+        <div class="dialog-heading">
+          <div>
+            <p class="eyebrow" id="categoryDialogBucket">Category</p>
+            <h2 id="categoryDialogTitle">Details</h2>
+          </div>
+          <button class="icon-button" type="submit" aria-label="Close category details">Close</button>
+        </div>
+        <div class="category-dialog-summary" id="categoryDialogSummary"></div>
+        <ol class="transaction-list compact-list" id="categoryDialogList"></ol>
+      </form>
+    </dialog>
+
+    <dialog class="category-edit-dialog" id="categoryEditDialog">
+      <form method="dialog" class="settings-form">
+        <div class="dialog-heading">
+          <div>
+            <p class="eyebrow">Category setup</p>
+            <h2 id="categoryEditTitle">Edit category</h2>
+          </div>
+          <button class="icon-button" type="submit" aria-label="Close category editor">Close</button>
+        </div>
+        <input id="editCategoryOriginalName" type="hidden" />
+        <label class="auth-field">
+          <span>Name</span>
+          <input id="editCategoryName" type="text" required />
+        </label>
+        <label class="auth-field">
+          <span>Super category</span>
+          <input id="editCategoryBucket" type="text" />
+        </label>
+        <label class="auth-field">
+          <span>Type</span>
+          <select id="editCategoryType">
+            <option value="Need">Need</option>
+            <option value="Want">Want</option>
+            <option value="Invest">Invest</option>
+            <option value="Income">Income</option>
+          </select>
+        </label>
+        <label class="auth-field">
+          <span>Monthly budget</span>
+          <input id="editCategoryBudget" type="number" inputmode="decimal" min="0" step="0.01" />
+        </label>
+        <div class="dialog-actions">
+          <button class="secondary-button danger-button" id="deleteCategoryButton" type="button">Delete</button>
+          <button class="primary-button" id="saveCategoryButton" type="button">Save category</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="transaction-edit-dialog" id="transactionEditDialog">
+      <form method="dialog" class="settings-form">
+        <div class="dialog-heading">
+          <div>
+            <p class="eyebrow">Move transaction</p>
+            <h2 id="transactionEditTitle">Transaction</h2>
+          </div>
+          <button class="icon-button" type="submit" aria-label="Close transaction editor">Close</button>
+        </div>
+        <div class="transaction-edit-summary" id="transactionEditSummary"></div>
+        <label class="auth-field">
+          <span>Category</span>
+          <select id="transactionEditCategory"></select>
+        </label>
+        <label class="auth-field">
+          <span>Short description</span>
+          <input id="transactionEditShortDescription" type="text" />
+        </label>
+        <label class="auth-field">
+          <span>Override month</span>
+          <input id="transactionEditOverrideMonth" type="month" />
+        </label>
+        <label class="auth-field">
+          <span>Travel tag</span>
+          <select id="transactionEditTravelTag">
+            <option value="">None</option>
+            <option value="Accommodation">Accommodation</option>
+            <option value="Car/Taxi/Transport">Car/Taxi/Transport</option>
+            <option value="Expenses">Expenses</option>
+            <option value="Flight">Flight</option>
+          </select>
+        </label>
+        <button class="primary-button" id="saveTransactionCategoryButton" type="button">Save details</button>
+      </form>
+    </dialog>
+
+    <dialog class="settings-dialog" id="settingsDialog">
+      <form method="dialog" class="settings-form">
+        <div class="dialog-heading">
+          <div>
+            <p class="eyebrow">Data source</p>
+            <h2>Transactions</h2>
+          </div>
+          <button class="icon-button" type="submit" aria-label="Close settings">Close</button>
+        </div>
+
+        <dl class="settings-list">
+          <div>
+            <dt>Source</dt>
+            <dd id="csvMode">expenses.csv</dd>
+          </div>
+          <div>
+            <dt>Category edits</dt>
+            <dd id="categoryEditCount">0</dd>
+          </div>
+        </dl>
+
+        <label class="file-picker">
+          <span>Load another CSV on this device</span>
+          <input id="csvFileInput" type="file" accept=".csv,text/csv" />
+        </label>
+
+        <p class="helper-text">
+          The app can read from your AWS database when configured, or from local CSV files while developing.
+        </p>
+
+        <div class="dialog-actions">
+          <button class="secondary-button" id="clearUploadButton" type="button">Clear upload</button>
+          <button class="secondary-button" id="resetCategoriesButton" type="button">Reset categories</button>
+          <button class="primary-button" id="csvRefreshButton" type="button">Refresh data</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script src="./app-config.js"></script>
+    <script src="./app.js" type="module"></script>
+  </body>
+</html>

@@ -1,0 +1,78 @@
+Bucket,Category,Actual expense,Regular expense,Type,Frequency (for regular expense only),Monthly Budget
+💰 Income,Income,N/A,N/A,Income,N/A,
+,Rent+,N/A,N/A,Income,N/A,
+,Other Income,N/A,N/A,Income,N/A,
+🏠 Housing,House - Mortgage,Yes,Yes,Need,Monthly-Basis,"€4,212"
+,House - Electricity,Yes,Yes,Need,Monthly-Basis,€400
+,House - Water,Yes,Yes,Need,Monthly-Basis,€35
+,House - Maintenance,Yes,Yes,Need,Yearly-Basis,€83
+,House - Internet,Yes,Yes,Need,Monthly-Basis,€67
+,House - Small Fixes & Renovations,Yes,Yes,Need,Yearly-Basis,€83
+,Garden Maintenance,Yes,Yes,Want,Yearly-Basis,€400
+,Household Equipment,Yes,Yes,Want,Everyday Expenses,
+🛒 Living Expenses,Food & Household Supplies,Yes,Yes,Need,Everyday Expenses,"€1,200"
+,House items,Yes,Yes,Want,Everyday Expenses,€100
+🚗 Transport,Commute,Yes,Yes,Need,Everyday Expenses,
+,Train Subscription,Yes,Yes,Need,Yearly-Basis,€11
+,Fuel,Yes,Yes,Need,Everyday Expenses,€300
+,Parking,Yes,Yes,Need,Everyday Expenses,
+,Car Wash,Yes,Yes,Want,Everyday Expenses,
+,Bike Maintenance,Yes,Yes,Need,Yearly-Basis,€25
+,Car Maintenance,Yes,Yes,Need,Yearly-Basis,€250
+👶 Family & Kids,Kids: Daycare,Yes,Yes,Need,Monthly-Basis,"€1,724"
+,Kids: Clothing,Yes,Yes,Need,Everyday Expenses,
+,Kids: Toys,Yes,Yes,Want,Everyday Expenses,
+,Kids: Supplies,Yes,Yes,Need,Everyday Expenses,
+,Kids: one-time,Yes,No,Need,N/A,
+,Familly,Yes,Yes,Need,Monthly-Basis,€50
+,Familly one-time,Yes,No,Need,N/A,
+"🍽 Social 
+& Leisure",Outings,Yes,Yes,Want,Everyday Expenses,€150
+,Restaurants and cafes,Yes,Yes,Want,Everyday Expenses,€300
+,Gifts,Yes,Yes,Want,Everyday Expenses,
+,Books,Yes,Yes,Want,Everyday Expenses,
+Personal & Lifestyle,Clothing,Yes,Yes,Want,Everyday Expenses,
+,Self care appointments,Yes,Yes,Want,Everyday Expenses,
+,Self care products,Yes,Yes,Want,Everyday Expenses,
+,Personal Electronics,Yes,Yes,Want,Everyday Expenses,
+,Gaming,Yes,Yes,Want,Everyday Expenses,
+,Sports,Yes,Yes,Want,Monthly-Basis,
+🏥 Medical,Medical,Yes,Yes,Need,Everyday Expenses,
+,Medical Insurance,Yes,Yes,Need,Monthly-Basis,€805
+🔁 Subscriptions,Online Subscriptions,Yes,Yes,Want,Monthly-Basis,€15
+,Phone,Yes,Yes,Want,Monthly-Basis,€50
+,Loterij,Yes,Yes,Want,Monthly-Basis,€0
+Charity,Charity,Yes,Yes,Want,Monthly-Basis,€20
+Travel,Travel,Yes,Yes,Want,Everyday Expenses,"€1,000"
+,Travel For Work,Yes,Yes,Need,Everyday Expenses,
+,Travel Equipments,Yes,Yes,Want,Everyday Expenses,
+"💳 Financial 
+& Admin",Transfers,No,Yes,Want,Everyday Expenses,
+,Mortgage Repayment,No,No,Invest,N/A,
+,Bank Fees,Yes,Yes,Need,Monthly-Basis,€26
+,Taxes,Yes,Yes,Need,Monthly-Basis,€50
+,Non-Monthly-Taxes,Yes,Yes,Need,Yearly-Basis,€217
+,Insurance,Yes,Yes,Need,Monthly-Basis,€330
+,Cash Withdrawal,Yes,Yes,Want,Everyday Expenses,
+,Paper work,Yes,Yes,Need,Everyday Expenses,
+Investments,Stock Investment,Yes,No,Invest,N/A,
+Apartment,Apartment - Water,Yes,Yes,Need,Monthly-Basis,€21
+,Apartment - Internet,Yes,Yes,Need,Monthly-Basis,€75
+,Apartment - Mortgage,Yes,Yes,Invest,Monthly-Basis,"€1,550"
+,Apartment - Maintenance,Yes,Yes,Need,Yearly-Basis,€83
+,Apartment - Building Maintenance,Yes,Yes,Need,Monthly-Basis,€220
+,Apartment - Electricity & Gas,Yes,Yes,Need,Monthly-Basis,€400
+"🧱 Irregular / 
+Large Expenses",House: TIB,Yes,No,Want,N/A,
+,House Renovations,Yes,No,Want,N/A,
+,House Renovations: Furniture,Yes,No,Want,N/A,
+,Apartment Renovations,Yes,No,Want,N/A,
+,Garden,Yes,No,Want,N/A,
+,Cars & Bikes,Yes,No,Want,N/A,
+⚙️ Temp,PayPal (Temp),Yes,Yes,Want,Everyday Expenses,
+,Amazon (Temp),Yes,Yes,Want,Everyday Expenses,
+,Bol (Temp),Yes,Yes,Want,Everyday Expenses,
+,Media Markt (Temp),Yes,Yes,Want,Everyday Expenses,
+,Credit card (Temp),Yes,Yes,Want,Everyday Expenses,
+,Coolblue (Temp),Yes,Yes,Want,Everyday Expenses,
+,Revolut (Temp),Yes,Yes,Want,Everyday Expenses,

@@ -1,0 +1,11 @@
+.env
+.venv/
+.gocardless/
+secrets.txt
+app-config.js
+.DS_Store
+*.pyc
+__pycache__/
+*.zip
+service-account*.json
+credentials*.json
