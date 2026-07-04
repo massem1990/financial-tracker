@@ -527,7 +527,7 @@ def record_to_category(record):
         "id": read_value(record[0]),
         "name": read_value(record[1]),
         "bucket": read_value(record[2]) or "Other",
-        "type": read_value(record[3]) or "Need",
+        "type": read_value(record[3]) or "N/A",
         "actualExpense": read_value(record[4]) or "Yes",
         "regularExpense": read_value(record[5]) or "Yes",
         "frequency": read_value(record[6]) or "Everyday Expense",
@@ -603,7 +603,7 @@ def sanitize_category_payload(payload):
     return {
         "name": name,
         "bucket": (payload.get("bucket") or "Other").strip() or "Other",
-        "type": (payload.get("type") or "Need").strip() or "Need",
+        "type": (payload.get("type") or "N/A").strip() or "N/A",
         "actual_expense": (payload.get("actualExpense") or "Yes").strip() or "Yes",
         "regular_expense": (payload.get("regularExpense") or "Yes").strip() or "Yes",
         "frequency": (payload.get("frequency") or "Everyday Expense").strip() or "Everyday Expense",
