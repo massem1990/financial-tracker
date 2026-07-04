@@ -1433,7 +1433,16 @@ h2 {
 
 .transaction-edit-summary {
   display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
+}
+
+.transaction-description-card {
+  grid-column: 1 / -1;
+}
+
+.transaction-description-card strong {
+  white-space: normal;
 }
 
 .transaction-edit-dialog .settings-form {
@@ -1500,7 +1509,8 @@ h2 {
 
   .analysis-filters,
   .insight-grid,
-  .category-dialog-summary {
+  .category-dialog-summary,
+  .transaction-edit-summary {
     grid-template-columns: 1fr;
   }
 

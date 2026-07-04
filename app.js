@@ -44,6 +44,14 @@ const dateFormatter = new Intl.DateTimeFormat(undefined, {
   year: "numeric",
 });
 
+const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
 const salaryPeriodFormatter = new Intl.DateTimeFormat(undefined, {
   month: "short",
   day: "numeric",
@@ -1645,21 +1653,35 @@ function openTransactionCategoryDialog(transactionId) {
   }
 
   state.editingTransactionId = transaction.id;
-  elements.transactionEditTitle.textContent = getTransactionTitle(transaction);
+  elements.transactionEditTitle.textContent = transaction.shortDescription || "Transaction details";
   elements.transactionEditSummary.innerHTML = `
+    <article class="transaction-description-card">
+      <span>Full description</span>
+      <strong></strong>
+    </article>
     <article>
-      <span>Date</span>
-      <strong>${formatTransactionDateLabel(transaction)}</strong>
+      <span>Account</span>
+      <strong></strong>
+    </article>
+    <article>
+      <span>Date/time</span>
+      <strong></strong>
     </article>
     <article>
       <span>Amount</span>
-      <strong>${CURRENCY.format(transaction.amount)}</strong>
+      <strong></strong>
     </article>
     <article>
       <span>Current</span>
-      <strong>${transaction.category || "Uncategorized"}</strong>
+      <strong></strong>
     </article>
   `;
+  const summaryValues = elements.transactionEditSummary.querySelectorAll("strong");
+  summaryValues[0].textContent = transaction.description || getTransactionTitle(transaction);
+  summaryValues[1].textContent = getTransactionAccountName(transaction) || "Unknown account";
+  summaryValues[2].textContent = formatTransactionDateTimeLabel(transaction);
+  summaryValues[3].textContent = CURRENCY.format(transaction.amount);
+  summaryValues[4].textContent = transaction.category || "Uncategorized";
   populateTransactionCategorySelect(elements.transactionEditCategory, transaction.category || "Uncategorized");
   elements.transactionEditShortDescription.value = transaction.shortDescription || "";
   elements.transactionEditOverrideMonth.value = transaction.overrideMonth || "";
@@ -1788,6 +1810,17 @@ function getTransactionTitle(transaction) {
 function formatTransactionDateLabel(transaction) {
   const date = transaction.date ? dateFormatter.format(transaction.date) : "No date";
   return transaction.overrideMonth ? `${date} - counted in ${transaction.overrideMonth}` : date;
+}
+
+function formatTransactionDateTimeLabel(transaction) {
+  if (!transaction.date) {
+    return "No date";
+  }
+  const hasTime = transaction.date.getHours() || transaction.date.getMinutes();
+  const date = hasTime ? dateTimeFormatter.format(transaction.date) : dateFormatter.format(transaction.date);
+  const suffix = hasTime ? "" : " - time not provided";
+  const override = transaction.overrideMonth ? ` - counted in ${transaction.overrideMonth}` : "";
+  return `${date}${suffix}${override}`;
 }
 
 function renderCategoryEditor() {
