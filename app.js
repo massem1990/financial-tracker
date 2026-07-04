@@ -720,7 +720,7 @@ async function fetchApiTransactionsWithWakeRetry() {
   return withAuroraWakeRetry(fetchApiTransactions);
 }
 
-async function withAuroraWakeRetry(operation) {
+async function withAuroraWakeRetry(operation, loadingCopy = {}) {
   const retryDelays = [2500, 4000, 6000, 8000, 10000];
   let lastError = null;
 
@@ -739,8 +739,8 @@ async function withAuroraWakeRetry(operation) {
 
       setLoading(
         true,
-        "Waking up Aurora database",
-        AURORA_WAKE_MESSAGES[Math.min(attempt, AURORA_WAKE_MESSAGES.length - 1)]
+        loadingCopy.title || "Waking up Aurora database",
+        loadingCopy.message || AURORA_WAKE_MESSAGES[Math.min(attempt, AURORA_WAKE_MESSAGES.length - 1)]
       );
       await delay(retryDelays[attempt]);
     }
@@ -1722,7 +1722,7 @@ async function saveTransactionCategoryDialog() {
   } catch (error) {
     transaction.category = previousCategory;
     Object.assign(transaction, previousDetails);
-    setStatus(`Could not save category change. ${error.message}`);
+    setStatus(`Could not save category change. ${friendlyErrorMessage(error)}`);
   }
 }
 
@@ -1737,18 +1737,29 @@ async function saveTransactionDetails(transaction, details) {
   transaction.effectiveDateValue = transaction.effectiveDate ? transaction.effectiveDate.getTime() : transaction.dateValue;
 
   if (CONFIG.apiBaseUrl) {
-    const payload = await apiRequest(`/transactions/${encodeURIComponent(transaction.id)}/details`, {
-      method: "PUT",
-      body: {
-        category: nextCategory,
-        originalCategory: transaction.originalCategory,
-        shortDescription: transaction.shortDescription,
-        overrideMonth: transaction.overrideMonth,
-        travelTag: transaction.travelTag,
-        accountFriendlyName: transaction.accountFriendlyName,
-      },
-    });
-    await updateLocalCacheFromWrite(payload?.metadata);
+    try {
+      const payload = await withAuroraWakeRetry(
+        () =>
+          apiRequest(`/transactions/${encodeURIComponent(transaction.id)}/details`, {
+            method: "PUT",
+            body: {
+              category: nextCategory,
+              originalCategory: transaction.originalCategory,
+              shortDescription: transaction.shortDescription,
+              overrideMonth: transaction.overrideMonth,
+              travelTag: transaction.travelTag,
+              accountFriendlyName: transaction.accountFriendlyName,
+            },
+          }),
+        {
+          title: "Saving after Aurora wakes up",
+          message: "Aurora was napping. Holding your category change carefully while it stretches.",
+        }
+      );
+      await updateLocalCacheFromWrite(payload?.metadata);
+    } finally {
+      setLoading(false);
+    }
   } else {
     if (nextCategory === transaction.originalCategory) {
       delete state.categoryOverrides[transaction.id];
@@ -2260,7 +2271,7 @@ async function chooseCategoryFromSearch(nextCategory) {
     elements.categorySearchDialog.close();
   } catch (error) {
     transaction.category = previousCategory;
-    setStatus(`Could not save category change. ${error.message}`);
+    setStatus(`Could not save category change. ${friendlyErrorMessage(error)}`);
   }
 }
 
@@ -2269,13 +2280,30 @@ async function saveTransactionCategory(transaction, nextCategory) {
 
   if (CONFIG.apiBaseUrl) {
     let payload = null;
-    if (shouldClearCategoryOverride(transaction, nextCategory)) {
-      payload = await apiRequest(`/transactions/${encodeURIComponent(transaction.id)}/category`, { method: "DELETE" });
-    } else {
-      payload = await apiRequest(`/transactions/${encodeURIComponent(transaction.id)}/category`, {
-        method: "PUT",
-        body: { category: nextCategory },
-      });
+    try {
+      if (shouldClearCategoryOverride(transaction, nextCategory)) {
+        payload = await withAuroraWakeRetry(
+          () => apiRequest(`/transactions/${encodeURIComponent(transaction.id)}/category`, { method: "DELETE" }),
+          {
+            title: "Saving after Aurora wakes up",
+            message: "Aurora is resuming. Your transaction is waiting politely at the counter.",
+          }
+        );
+      } else {
+        payload = await withAuroraWakeRetry(
+          () =>
+            apiRequest(`/transactions/${encodeURIComponent(transaction.id)}/category`, {
+              method: "PUT",
+              body: { category: nextCategory },
+            }),
+          {
+            title: "Saving after Aurora wakes up",
+            message: "Aurora is resuming. Your category change is queued with excellent manners.",
+          }
+        );
+      }
+    } finally {
+      setLoading(false);
     }
     await updateLocalCacheFromWrite(payload?.metadata);
   } else if (nextCategory === transaction.originalCategory) {
@@ -2291,6 +2319,13 @@ async function saveTransactionCategory(transaction, nextCategory) {
 
 function shouldClearCategoryOverride(transaction, nextCategory) {
   return nextCategory === transaction.originalCategory || nextCategory === "Uncategorized";
+}
+
+function friendlyErrorMessage(error) {
+  if (isAuroraWakingError(error)) {
+    return "Aurora is still waking up. Please try again in a few seconds.";
+  }
+  return error.message;
 }
 
 function loadCategoryOverrides() {
