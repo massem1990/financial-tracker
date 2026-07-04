@@ -1387,6 +1387,18 @@ function filterCategorySummaries(summaries) {
     if (state.categoryMode === "actual") {
       return summary.actualExpense === "Yes";
     }
+    if (state.categoryMode === "needs") {
+      return summary.type === "Need";
+    }
+    if (state.categoryMode === "wants") {
+      return summary.type === "Want";
+    }
+    if (state.categoryMode === "income") {
+      return summary.type === "Income";
+    }
+    if (state.categoryMode === "invest") {
+      return summary.type === "Invest";
+    }
     return true;
   });
 }
