@@ -145,6 +145,7 @@ const elements = {
   categorySearchTitle: document.querySelector("#categorySearchTitle"),
   categorySearchInput: document.querySelector("#categorySearchInput"),
   categorySearchList: document.querySelector("#categorySearchList"),
+  categorySearchCloseButton: document.querySelector("#categorySearchCloseButton"),
   transactionEditDialog: document.querySelector("#transactionEditDialog"),
   transactionEditTitle: document.querySelector("#transactionEditTitle"),
   transactionEditSummary: document.querySelector("#transactionEditSummary"),
@@ -300,6 +301,10 @@ elements.categorySearchList.addEventListener("click", async (event) => {
   }
 
   await chooseCategoryFromSearch(button.dataset.categoryName);
+});
+
+elements.categorySearchCloseButton.addEventListener("click", () => {
+  elements.categorySearchDialog.close();
 });
 
 elements.categorySearchDialog.addEventListener("close", () => {
