@@ -2,6 +2,7 @@ import json
 import os
 from datetime import datetime, timezone
 from urllib.parse import unquote
+from uuid import uuid4
 
 
 DEFAULT_LIMIT = 300
@@ -30,6 +31,10 @@ def handler(event, context):
         if path.endswith("/sync/gocardless") and method == "POST":
             result = run_gocardless_sync(read_json_body(event))
             return response(200, result)
+
+        sync_status_id = path_param_after(path, "/sync/gocardless/")
+        if sync_status_id and method == "GET":
+            return response(200, fetch_sync_status(sync_status_id))
 
         if path.endswith("/categories") and method == "GET":
             return response(200, {"categories": fetch_categories()})
@@ -147,7 +152,9 @@ def run_gocardless_sync(payload):
     import boto3
 
     function_name = os.getenv("GOCARDLESS_SYNC_FUNCTION", "financial-tracker-gocardless-sync")
+    sync_id = payload.get("syncId") or payload.get("sync_id") or f"sync-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}-{uuid4().hex[:8]}"
     sync_payload = {
+        "sync_id": sync_id,
         "dry_run": request_bool(payload.get("dryRun", payload.get("dry_run"))) if has_any(payload, ["dryRun", "dry_run"]) else False,
         "write_database": request_bool(payload.get("writeDatabase", payload.get("write_database")))
         if has_any(payload, ["writeDatabase", "write_database"])
@@ -168,6 +175,16 @@ def run_gocardless_sync(payload):
             sync_payload[target] = payload[source]
 
     lambda_client = boto3.client("lambda")
+    if not request_bool(payload.get("wait")):
+        status = {"syncId": sync_id, "status": "started", "message": "Sync job started"}
+        write_sync_status(status)
+        lambda_client.invoke(
+            FunctionName=function_name,
+            InvocationType="Event",
+            Payload=json.dumps(sync_payload).encode("utf-8"),
+        )
+        return {"ok": True, "syncId": sync_id, "sync": status, "metadata": fetch_app_state_safely()}
+
     result = lambda_client.invoke(
         FunctionName=function_name,
         InvocationType="RequestResponse",
@@ -204,6 +221,45 @@ def fetch_app_state_safely():
         return json.loads(item["Body"].read().decode("utf-8"))
     except Exception:
         return None
+
+
+def fetch_sync_status(sync_id):
+    bucket = os.getenv("APP_STATE_BUCKET")
+    if not bucket:
+        raise RuntimeError("APP_STATE_BUCKET is required for sync status.")
+
+    import boto3
+
+    key = sync_status_key(sync_id)
+    try:
+        item = boto3.client("s3").get_object(Bucket=bucket, Key=key)
+        return json.loads(item["Body"].read().decode("utf-8"))
+    except Exception as error:
+        if getattr(error, "response", {}).get("Error", {}).get("Code") in {"NoSuchKey", "404"}:
+            return {"syncId": sync_id, "status": "started", "message": "Waiting for sync job to report progress"}
+        raise
+
+
+def write_sync_status(payload):
+    bucket = os.getenv("APP_STATE_BUCKET")
+    if not bucket:
+        return
+
+    import boto3
+
+    now = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    payload = {**payload, "updatedAt": payload.get("updatedAt") or now}
+    boto3.client("s3").put_object(
+        Bucket=bucket,
+        Key=sync_status_key(payload["syncId"]),
+        Body=json.dumps(payload).encode("utf-8"),
+        ContentType="application/json",
+        CacheControl="no-store, no-cache, max-age=0, must-revalidate",
+    )
+
+
+def sync_status_key(sync_id):
+    return f"{os.getenv('SYNC_STATUS_PREFIX', 'metadata/sync-runs').strip('/')}/{sync_id}.json"
 
 
 def record_to_transaction(record):

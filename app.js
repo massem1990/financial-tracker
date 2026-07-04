@@ -790,17 +790,11 @@ async function runGoCardlessSync() {
       ],
     });
 
-    const result = await withAuroraWakeRetry(
-      () => apiRequest("/sync/gocardless", { method: "POST", body: {} }),
-      {
-        title: "Waking Aurora database",
-        message: "Aurora is putting on socks before the bank sync. Give it a few seconds.",
-      }
-    );
-    const sync = result.sync || {};
+    const started = await apiRequest("/sync/gocardless", { method: "POST", body: {} });
+    const sync = await pollGoCardlessSync(started.syncId);
 
     renderSyncResult(sync, "Refreshing app cache");
-    await updateLocalCacheFromWrite(result.metadata || sync.metadata);
+    await updateLocalCacheFromWrite(sync.metadata);
     await loadAppData({
       forceRefresh: true,
       title: "Loading synced transactions",
@@ -843,6 +837,54 @@ function renderSyncResult(sync, finalStepLabel = "Done") {
       { label: `${upserted} database row${upserted === 1 ? "" : "s"} inserted or refreshed`, state: "done" },
       { label: finalStepLabel, state: finalStepLabel === "Done" ? "done" : "active" },
     ],
+  });
+}
+
+async function pollGoCardlessSync(syncId) {
+  if (!syncId) {
+    throw new Error("Sync did not return a status id.");
+  }
+
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    const status = await apiRequest(`/sync/gocardless/${encodeURIComponent(syncId)}`);
+    renderSyncStatus(status);
+
+    if (status.status === "complete") {
+      return status.result || status;
+    }
+    if (status.status === "failed") {
+      const error = new Error(status.message || "GoCardless sync failed.");
+      error.type = status.error_type || status.errorType || "";
+      throw error;
+    }
+
+    await delay(2500);
+  }
+
+  throw new Error("GoCardless sync is still running. Try Refresh in a minute.");
+}
+
+function renderSyncStatus(status) {
+  const fetched = Number(status.transaction_count || status.transactionCount || 0);
+  const accounts = status.account_count || status.accountCount || status.accounts?.length || "the";
+  const categorised = Number(status.categorization?.autoCategorized || 0);
+  const message = status.message || "Sync is running";
+  const steps = [
+    { label: `Fetching transactions from ${accounts} account${accounts === 1 ? "" : "s"}`, state: fetched ? "done" : "active" },
+    { label: `${fetched} transaction${fetched === 1 ? "" : "s"} retrieved so far`, state: fetched ? "done" : "active" },
+  ];
+
+  if (categorised) {
+    steps.push({ label: `${categorised} transaction${categorised === 1 ? "" : "s"} auto categorised`, state: "done" });
+  }
+
+  steps.push({ label: message, state: status.status === "failed" ? "error" : "active" });
+
+  renderSyncPanel({
+    title: status.status === "started" ? "Starting bank sync" : "Fetching transactions",
+    badge: status.status === "complete" ? "Done" : status.status === "failed" ? "Error" : "Running",
+    summary: message,
+    steps,
   });
 }
 

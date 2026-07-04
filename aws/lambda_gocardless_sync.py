@@ -17,63 +17,98 @@ BASE_URL = "https://bankaccountdata.gocardless.com/api/v2"
 
 def handler(event, context):
     event = event or {}
+    sync_id = event.get("sync_id") or event.get("syncId") or time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
     dry_run = event_bool(event, "dry_run", env_bool("DRY_RUN", default=True))
     write_database = event_bool(event, "write_database", env_bool("WRITE_DATABASE", default=False))
-    date_to = event.get("date_to") or event.get("dateTo") or os.getenv("DATE_TO") or date.today().isoformat()
-    account_ids = get_account_ids(event)
-    sync_plan = build_sync_plan(event, account_ids, date_to, write_database and not dry_run)
-    date_from = sync_plan["dateFrom"]
 
-    if dry_run:
-        rows = sample_transactions(date_from, date_to)
-        raw_payload = {"mode": "dry_run", "transactions": rows, "syncPlan": sync_plan}
-        per_account_stats = [{"accountId": "dry-run-account", "dateFrom": date_from, "dateTo": date_to, "retrieved": len(rows)}]
-    else:
-        token = get_access_token()
-        rows = []
-        raw_payload = {"mode": "live", "accounts": {}, "syncPlan": sync_plan}
-        per_account_stats = []
-        for account_id in account_ids:
-            account_date_from = sync_plan["accounts"].get(account_id, {}).get("dateFrom", date_from)
-            payload = fetch_account_transactions(token, account_id, account_date_from, date_to)
-            account_rows = normalize_transactions(account_id, payload)
-            raw_payload["accounts"][account_id] = {
-                "dateFrom": account_date_from,
-                "dateTo": date_to,
-                "response": payload,
-            }
-            per_account_stats.append(
-                {
-                    "accountId": account_id,
+    try:
+        date_to = event.get("date_to") or event.get("dateTo") or os.getenv("DATE_TO") or date.today().isoformat()
+        account_ids = get_account_ids(event)
+        update_sync_status(sync_id, "running", "Planning sync window", account_count=len(account_ids))
+        sync_plan = build_sync_plan(event, account_ids, date_to, write_database and not dry_run)
+        date_from = sync_plan["dateFrom"]
+
+        if dry_run:
+            rows = sample_transactions(date_from, date_to)
+            raw_payload = {"mode": "dry_run", "transactions": rows, "syncPlan": sync_plan}
+            per_account_stats = [{"accountId": "dry-run-account", "dateFrom": date_from, "dateTo": date_to, "retrieved": len(rows)}]
+        else:
+            token = get_access_token()
+            rows = []
+            raw_payload = {"mode": "live", "accounts": {}, "syncPlan": sync_plan}
+            per_account_stats = []
+            for index, account_id in enumerate(account_ids, start=1):
+                update_sync_status(
+                    sync_id,
+                    "running",
+                    f"Fetching account {index} of {len(account_ids)}",
+                    account_count=len(account_ids),
+                    transaction_count=len(rows),
+                    accounts=per_account_stats,
+                )
+                account_date_from = sync_plan["accounts"].get(account_id, {}).get("dateFrom", date_from)
+                payload = fetch_account_transactions(token, account_id, account_date_from, date_to)
+                account_rows = normalize_transactions(account_id, payload)
+                raw_payload["accounts"][account_id] = {
                     "dateFrom": account_date_from,
                     "dateTo": date_to,
-                    "retrieved": len(account_rows),
-                    "booked": len(payload.get("transactions", {}).get("booked", [])),
-                    "pending": len(payload.get("transactions", {}).get("pending", [])),
+                    "response": payload,
                 }
-            )
-            rows.extend(account_rows)
+                per_account_stats.append(
+                    {
+                        "accountId": account_id,
+                        "dateFrom": account_date_from,
+                        "dateTo": date_to,
+                        "retrieved": len(account_rows),
+                        "booked": len(payload.get("transactions", {}).get("booked", [])),
+                        "pending": len(payload.get("transactions", {}).get("pending", [])),
+                    }
+                )
+                rows.extend(account_rows)
 
-    rows, categorization_stats = categorize_rows(rows)
-    csv_text = transactions_to_csv(rows)
-    written = write_outputs(raw_payload, csv_text)
-    database_result = upsert_transactions(rows, raw_payload, date_from, date_to) if write_database else None
-    metadata = bump_app_state("gocardless-sync") if write_database and rows else None
+        update_sync_status(
+            sync_id,
+            "running",
+            "Applying categorisation rules",
+            account_count=len(account_ids),
+            transaction_count=len(rows),
+            accounts=per_account_stats,
+        )
+        rows, categorization_stats = categorize_rows(rows)
+        csv_text = transactions_to_csv(rows)
+        written = write_outputs(raw_payload, csv_text)
+        update_sync_status(
+            sync_id,
+            "running",
+            "Writing synced rows",
+            account_count=len(account_ids),
+            transaction_count=len(rows),
+            categorization=categorization_stats,
+            accounts=per_account_stats,
+        )
+        database_result = upsert_transactions(rows, raw_payload, date_from, date_to) if write_database else None
+        metadata = bump_app_state("gocardless-sync") if write_database and rows else None
 
-    return {
-        "ok": True,
-        "dryRun": dry_run,
-        "writeDatabase": write_database,
-        "dateFrom": date_from,
-        "dateTo": date_to,
-        "accountCount": len(account_ids),
-        "transactionCount": len(rows),
-        "categorization": categorization_stats,
-        "accounts": per_account_stats,
-        "written": written,
-        "database": database_result,
-        "metadata": metadata,
-    }
+        result = {
+            "ok": True,
+            "syncId": sync_id,
+            "dryRun": dry_run,
+            "writeDatabase": write_database,
+            "dateFrom": date_from,
+            "dateTo": date_to,
+            "accountCount": len(account_ids),
+            "transactionCount": len(rows),
+            "categorization": categorization_stats,
+            "accounts": per_account_stats,
+            "written": written,
+            "database": database_result,
+            "metadata": metadata,
+        }
+        update_sync_status(sync_id, "complete", "Sync complete", result=result)
+        return result
+    except Exception as error:
+        update_sync_status(sync_id, "failed", str(error), error_type=type(error).__name__)
+        raise
 
 
 def build_sync_plan(event, account_ids, date_to, use_database):
@@ -485,6 +520,32 @@ def bump_app_state(reason):
     return metadata
 
 
+def update_sync_status(sync_id, status, message, **extra):
+    bucket = os.getenv("APP_STATE_BUCKET")
+    if not bucket:
+        return None
+
+    import boto3
+
+    now = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    payload = {
+        "syncId": sync_id,
+        "status": status,
+        "message": message,
+        "updatedAt": now,
+        **extra,
+    }
+    key = f"{os.getenv('SYNC_STATUS_PREFIX', 'metadata/sync-runs').strip('/')}/{sync_id}.json"
+    boto3.client("s3").put_object(
+        Bucket=bucket,
+        Key=key,
+        Body=json.dumps(payload).encode("utf-8"),
+        ContentType="application/json",
+        CacheControl="no-store, no-cache, max-age=0, must-revalidate",
+    )
+    return payload
+
+
 def provider_transaction_key(row):
     transaction_id = row.get("transactionId")
     account_id = row.get("accountId", "")
@@ -504,23 +565,42 @@ def provider_transaction_key(row):
 
 
 def execute_statement(client, resource_arn, secret_arn, database, sql, parameters=None):
-    return client.execute_statement(
-        resourceArn=resource_arn,
-        secretArn=secret_arn,
-        database=database,
-        sql=sql,
-        parameters=parameters or [],
-    )
+    for attempt, delay_seconds in enumerate([0, 2, 4, 8, 12, 16]):
+        if delay_seconds:
+            time.sleep(delay_seconds)
+        try:
+            return client.execute_statement(
+                resourceArn=resource_arn,
+                secretArn=secret_arn,
+                database=database,
+                sql=sql,
+                parameters=parameters or [],
+            )
+        except Exception as error:
+            if attempt == 5 or not is_database_resuming_error(error):
+                raise
 
 
 def batch_execute_statement(client, resource_arn, secret_arn, database, sql, parameter_sets):
-    return client.batch_execute_statement(
-        resourceArn=resource_arn,
-        secretArn=secret_arn,
-        database=database,
-        sql=sql,
-        parameterSets=parameter_sets,
-    )
+    for attempt, delay_seconds in enumerate([0, 2, 4, 8, 12, 16]):
+        if delay_seconds:
+            time.sleep(delay_seconds)
+        try:
+            return client.batch_execute_statement(
+                resourceArn=resource_arn,
+                secretArn=secret_arn,
+                database=database,
+                sql=sql,
+                parameterSets=parameter_sets,
+            )
+        except Exception as error:
+            if attempt == 5 or not is_database_resuming_error(error):
+                raise
+
+
+def is_database_resuming_error(error):
+    text = str(error).lower()
+    return "databaseresumingexception" in text or "resuming after being auto-paused" in text
 
 
 def string_param(name, value):
