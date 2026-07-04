@@ -1664,6 +1664,9 @@ function openTransactionCategoryDialog(transactionId) {
   elements.transactionEditShortDescription.value = transaction.shortDescription || "";
   elements.transactionEditOverrideMonth.value = transaction.overrideMonth || "";
   elements.transactionEditTravelTag.value = transaction.travelTag || "";
+  if (elements.categoryDialog.open) {
+    elements.categoryDialog.close();
+  }
   elements.transactionEditDialog.showModal();
 }
 
@@ -1716,9 +1719,6 @@ async function saveTransactionCategoryDialog() {
       accountFriendlyName: transaction.accountFriendlyName || getAccountName(transaction.account),
     });
     elements.transactionEditDialog.close();
-    if (state.categoryDialog.open && state.openCategoryDialogName) {
-      openCategoryDialog(state.openCategoryDialogName);
-    }
   } catch (error) {
     transaction.category = previousCategory;
     Object.assign(transaction, previousDetails);

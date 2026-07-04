@@ -1418,10 +1418,13 @@ h2 {
 
 .transaction-edit-dialog {
   width: min(92vw, 500px);
+  max-width: 100vw;
+  max-height: min(88dvh, 760px);
   border: 0;
   border-radius: 8px;
   padding: 0;
   background: transparent;
+  overflow: hidden;
 }
 
 .transaction-edit-dialog::backdrop {
@@ -1431,6 +1434,44 @@ h2 {
 .transaction-edit-summary {
   display: grid;
   gap: 8px;
+}
+
+.transaction-edit-dialog .settings-form {
+  display: grid;
+  max-height: min(88dvh, 760px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.transaction-edit-dialog .dialog-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+}
+
+.transaction-edit-dialog .dialog-heading h2 {
+  display: -webkit-box;
+  max-height: 4.2em;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  font-size: clamp(1.1rem, 4.7vw, 1.45rem);
+  line-height: 1.18;
+}
+
+.transaction-edit-close {
+  min-width: 46px;
+  min-height: 46px;
+  border-radius: 999px;
+  font-size: 1.45rem;
+  line-height: 1;
+}
+
+.transaction-edit-dialog select,
+.transaction-edit-dialog input {
+  min-width: 0;
+  width: 100%;
 }
 
 .compact-list {
@@ -1499,6 +1540,19 @@ h2 {
   }
 
   .category-search-dialog .settings-form {
+    max-height: 88dvh;
+    border-radius: 16px 16px 0 0;
+    padding-bottom: calc(18px + env(safe-area-inset-bottom));
+  }
+
+  .transaction-edit-dialog {
+    width: 100%;
+    max-width: none;
+    max-height: 88dvh;
+    margin: auto 0 0;
+  }
+
+  .transaction-edit-dialog .settings-form {
     max-height: 88dvh;
     border-radius: 16px 16px 0 0;
     padding-bottom: calc(18px + env(safe-area-inset-bottom));
