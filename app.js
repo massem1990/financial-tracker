@@ -473,6 +473,8 @@ if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("./sw.js").catch(() => {});
 }
 
+installZoomGuards();
+
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") {
     refreshAfterAppResume();
@@ -2965,4 +2967,36 @@ async function isValidLogin(login, password) {
   } catch (error) {
     return false;
   }
+}
+
+function installZoomGuards() {
+  let lastTouchEnd = 0;
+
+  document.addEventListener(
+    "gesturestart",
+    (event) => {
+      event.preventDefault();
+    },
+    { passive: false }
+  );
+
+  document.addEventListener(
+    "gesturechange",
+    (event) => {
+      event.preventDefault();
+    },
+    { passive: false }
+  );
+
+  document.addEventListener(
+    "touchend",
+    (event) => {
+      const now = Date.now();
+      if (now - lastTouchEnd <= 320) {
+        event.preventDefault();
+      }
+      lastTouchEnd = now;
+    },
+    { passive: false }
+  );
 }

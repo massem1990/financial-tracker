@@ -18,9 +18,11 @@
 
 * {
   box-sizing: border-box;
+  touch-action: manipulation;
 }
 
 body {
+  touch-action: pan-y;
   min-height: 100vh;
   margin: 0;
   background:
