@@ -1175,10 +1175,12 @@ h2 {
 
 .settings-dialog {
   width: min(92vw, 500px);
+  max-height: min(88dvh, 780px);
   border: 0;
   border-radius: 8px;
   padding: 0;
   background: transparent;
+  overflow: hidden;
 }
 
 .category-edit-dialog {
@@ -1200,9 +1202,13 @@ h2 {
 .settings-form {
   display: grid;
   gap: 18px;
+  max-height: min(88dvh, 780px);
   padding: 18px;
   border-radius: 8px;
   background: var(--surface);
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .helper-text {
@@ -1237,6 +1243,77 @@ h2 {
   font-weight: 900;
   overflow-wrap: anywhere;
   text-align: right;
+}
+
+.rules-settings {
+  display: grid;
+  gap: 14px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.rules-settings h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.rule-editor-card {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(28, 42, 39, 0.7);
+}
+
+.rules-summary {
+  color: var(--muted);
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+.rules-list {
+  display: grid;
+  gap: 8px;
+  max-height: 420px;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  list-style: none;
+}
+
+.rule-list-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-strong);
+}
+
+.rule-list-main {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.rule-list-main strong {
+  overflow-wrap: anywhere;
+}
+
+.rule-list-main small {
+  color: var(--muted);
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.rule-list-actions {
+  display: grid;
+  gap: 6px;
 }
 
 .primary-button,

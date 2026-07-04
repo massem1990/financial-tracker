@@ -81,6 +81,8 @@ const state = {
   categorySearchTransactionId: "",
   openCategoryDialogName: "",
   categoryOverrides: CONFIG.apiBaseUrl ? {} : loadCategoryOverrides(),
+  categorizationRules: null,
+  ruleSearch: "",
 };
 
 const elements = {
@@ -185,6 +187,19 @@ const elements = {
   csvRefreshButton: document.querySelector("#csvRefreshButton"),
   clearUploadButton: document.querySelector("#clearUploadButton"),
   resetCategoriesButton: document.querySelector("#resetCategoriesButton"),
+  reloadRulesButton: document.querySelector("#reloadRulesButton"),
+  ruleSearchInput: document.querySelector("#ruleSearchInput"),
+  rulesSummary: document.querySelector("#rulesSummary"),
+  rulesList: document.querySelector("#rulesList"),
+  ruleOriginalType: document.querySelector("#ruleOriginalType"),
+  ruleOriginalMatch: document.querySelector("#ruleOriginalMatch"),
+  ruleOriginalAmount: document.querySelector("#ruleOriginalAmount"),
+  ruleType: document.querySelector("#ruleType"),
+  ruleMatch: document.querySelector("#ruleMatch"),
+  ruleAmount: document.querySelector("#ruleAmount"),
+  ruleValue: document.querySelector("#ruleValue"),
+  clearRuleFormButton: document.querySelector("#clearRuleFormButton"),
+  saveRuleButton: document.querySelector("#saveRuleButton"),
   salaryPeriodNav: document.querySelector("#salaryPeriodNav"),
   salaryPeriodLabel: document.querySelector("#salaryPeriodLabel"),
   salaryPrevButton: document.querySelector("#salaryPrevButton"),
@@ -369,11 +384,48 @@ if (elements.downloadButton) {
 }
 
 if (elements.settingsButton) {
-  elements.settingsButton.addEventListener("click", () => {
+  elements.settingsButton.addEventListener("click", async () => {
     updateSettings();
     elements.settingsDialog.showModal();
+    await loadCategorizationRules();
   });
 }
+
+elements.reloadRulesButton.addEventListener("click", async () => {
+  await loadCategorizationRules({ force: true });
+});
+
+elements.ruleSearchInput.addEventListener("input", () => {
+  state.ruleSearch = elements.ruleSearchInput.value.trim().toLowerCase();
+  renderRulesList();
+});
+
+elements.ruleType.addEventListener("change", () => {
+  updateRuleFormMode();
+});
+
+elements.clearRuleFormButton.addEventListener("click", () => {
+  clearRuleForm();
+});
+
+elements.saveRuleButton.addEventListener("click", async () => {
+  await saveRuleFromForm();
+});
+
+elements.rulesList.addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-rule-action]");
+  if (!button) {
+    return;
+  }
+  const type = button.dataset.ruleType;
+  const match = button.dataset.ruleMatch;
+  const amount = button.dataset.ruleAmount || "";
+  if (button.dataset.ruleAction === "edit") {
+    editRule(type, match, amount);
+  } else if (button.dataset.ruleAction === "delete") {
+    await deleteRule(type, match, amount);
+  }
+});
 
 elements.csvRefreshButton.addEventListener("click", () => {
   loadAppData({ forceRefresh: true });
@@ -2599,6 +2651,268 @@ function formatIsoDate(date) {
 function escapeCsvValue(value) {
   const text = String(value ?? "");
   return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+async function loadCategorizationRules({ force = false } = {}) {
+  if (!CONFIG.apiBaseUrl) {
+    elements.rulesSummary.textContent = "Rules editing needs the AWS backend.";
+    elements.rulesList.innerHTML = '<li class="empty-inline">Connect the backend to edit categorisation rules.</li>';
+    return;
+  }
+  if (state.categorizationRules && !force) {
+    renderRulesList();
+    return;
+  }
+
+  elements.rulesSummary.textContent = "Loading rules...";
+  elements.rulesList.innerHTML = "";
+  try {
+    const payload = await apiRequest("/categorization-rules");
+    state.categorizationRules = normalizeRules(payload.rules);
+    renderRulesList();
+    clearRuleForm();
+  } catch (error) {
+    elements.rulesSummary.textContent = `Could not load rules. ${friendlyErrorMessage(error)}`;
+  }
+}
+
+function normalizeRules(rules = {}) {
+  return {
+    keywords: normalizeRuleMap(rules.keywords, true),
+    shortDescriptions: normalizeRuleMap(rules.shortDescriptions, true),
+    transferAccounts: normalizeRuleMap(rules.transferAccounts, false),
+    travelCategories: normalizeRuleMap(rules.travelCategories, false),
+    amountOverrides: normalizeAmountOverrides(rules.amountOverrides),
+    tempAmountOverrideCategory: rules.tempAmountOverrideCategory || "Online Subscriptions",
+  };
+}
+
+function normalizeRuleMap(value, lowerKeys) {
+  if (!value || typeof value !== "object") {
+    return {};
+  }
+  return Object.entries(value).reduce((rules, [key, item]) => {
+    const cleanKey = String(key || "").trim();
+    const cleanValue = String(item || "").trim();
+    if (cleanKey && cleanValue) {
+      rules[lowerKeys ? cleanKey.toLowerCase() : cleanKey.toUpperCase()] = cleanValue;
+    }
+    return rules;
+  }, {});
+}
+
+function normalizeAmountOverrides(value) {
+  if (!value || typeof value !== "object") {
+    return {};
+  }
+  return Object.entries(value).reduce((rules, [category, overrides]) => {
+    const cleanCategory = String(category || "").trim();
+    if (!cleanCategory || !overrides || typeof overrides !== "object") {
+      return rules;
+    }
+    const cleaned = normalizeRuleMap(overrides, false);
+    if (Object.keys(cleaned).length) {
+      rules[cleanCategory] = cleaned;
+    }
+    return rules;
+  }, {});
+}
+
+function renderRulesList() {
+  const allRows = getRuleRows();
+  const rows = allRows.filter((row) => {
+    const searchable = [row.typeLabel, row.match, row.amount, row.value].join(" ").toLowerCase();
+    return !state.ruleSearch || searchable.includes(state.ruleSearch);
+  });
+  elements.rulesSummary.textContent = `${rows.length} of ${allRows.length} rules shown`;
+  elements.rulesList.innerHTML = "";
+
+  if (!rows.length) {
+    elements.rulesList.innerHTML = '<li class="empty-inline">No matching rules.</li>';
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+  rows.slice(0, 120).forEach((row) => {
+    const item = document.createElement("li");
+    item.className = "rule-list-item";
+
+    const main = document.createElement("div");
+    main.className = "rule-list-main";
+    const title = document.createElement("strong");
+    title.textContent = row.match;
+    const meta = document.createElement("small");
+    meta.textContent = [row.typeLabel, row.amount ? `amount ${row.amount}` : "", `→ ${row.value}`].filter(Boolean).join(" - ");
+    main.append(title, meta);
+
+    const actions = document.createElement("div");
+    actions.className = "rule-list-actions";
+    actions.append(createRuleActionButton("Edit", "edit", row), createRuleActionButton("Delete", "delete", row, true));
+    item.append(main, actions);
+    fragment.append(item);
+  });
+
+  elements.rulesList.append(fragment);
+  if (rows.length > 120) {
+    const note = document.createElement("li");
+    note.className = "list-note";
+    note.textContent = `Showing first 120. Search to narrow ${rows.length - 120} more.`;
+    elements.rulesList.append(note);
+  }
+}
+
+function createRuleActionButton(label, action, row, danger = false) {
+  const button = document.createElement("button");
+  button.className = `secondary-button compact-button${danger ? " danger-button" : ""}`;
+  button.type = "button";
+  button.dataset.ruleAction = action;
+  button.dataset.ruleType = row.type;
+  button.dataset.ruleMatch = row.match;
+  button.dataset.ruleAmount = row.amount || "";
+  button.textContent = label;
+  return button;
+}
+
+function getRuleRows() {
+  const rules = state.categorizationRules || normalizeRules();
+  const rows = [
+    ...Object.entries(rules.keywords).map(([match, value]) => ({ type: "keyword", typeLabel: "Keyword → category", match, value })),
+    ...Object.entries(rules.shortDescriptions).map(([match, value]) => ({
+      type: "shortDescription",
+      typeLabel: "Keyword → short description",
+      match,
+      value,
+    })),
+    ...Object.entries(rules.transferAccounts).map(([match, value]) => ({
+      type: "transferAccount",
+      typeLabel: "IBAN/account → transfer name",
+      match,
+      value,
+    })),
+    ...Object.entries(rules.travelCategories).map(([match, value]) => ({
+      type: "travelCategory",
+      typeLabel: "Keyword → travel tag",
+      match,
+      value,
+    })),
+  ];
+
+  Object.entries(rules.amountOverrides).forEach(([category, overrides]) => {
+    Object.entries(overrides).forEach(([amount, value]) => {
+      rows.push({
+        type: "amountOverride",
+        typeLabel: "Category + amount → short description",
+        match: category,
+        amount,
+        value,
+      });
+    });
+  });
+
+  return rows.sort((a, b) => a.typeLabel.localeCompare(b.typeLabel) || a.match.localeCompare(b.match));
+}
+
+function editRule(type, match, amount = "") {
+  const row = getRuleRows().find((item) => item.type === type && item.match === match && (item.amount || "") === amount);
+  if (!row) {
+    return;
+  }
+  elements.ruleOriginalType.value = row.type;
+  elements.ruleOriginalMatch.value = row.match;
+  elements.ruleOriginalAmount.value = row.amount || "";
+  elements.ruleType.value = row.type;
+  elements.ruleMatch.value = row.match;
+  elements.ruleAmount.value = row.amount || "";
+  elements.ruleValue.value = row.value;
+  updateRuleFormMode();
+  elements.ruleMatch.focus();
+}
+
+async function deleteRule(type, match, amount = "") {
+  removeRule(type, match, amount);
+  await persistCategorizationRules("Deleted rule.");
+  clearRuleForm();
+}
+
+async function saveRuleFromForm() {
+  if (!state.categorizationRules) {
+    state.categorizationRules = normalizeRules();
+  }
+  const type = elements.ruleType.value;
+  const match = elements.ruleMatch.value.trim();
+  const amount = elements.ruleAmount.value.trim();
+  const value = elements.ruleValue.value.trim();
+  if (!match || !value || (type === "amountOverride" && !amount)) {
+    setStatus("Rule needs match text, result, and amount when using amount override.");
+    return;
+  }
+
+  removeRule(elements.ruleOriginalType.value, elements.ruleOriginalMatch.value, elements.ruleOriginalAmount.value);
+  setRule(type, match, value, amount);
+  await persistCategorizationRules("Saved categorisation rule.");
+  clearRuleForm();
+}
+
+function setRule(type, match, value, amount = "") {
+  const rules = state.categorizationRules;
+  if (type === "keyword") {
+    rules.keywords[match.toLowerCase()] = value;
+  } else if (type === "shortDescription") {
+    rules.shortDescriptions[match.toLowerCase()] = value;
+  } else if (type === "transferAccount") {
+    rules.transferAccounts[match.toUpperCase()] = value;
+  } else if (type === "travelCategory") {
+    rules.travelCategories[match.toUpperCase()] = value;
+  } else if (type === "amountOverride") {
+    rules.amountOverrides[match] = rules.amountOverrides[match] || {};
+    rules.amountOverrides[match][amount] = value;
+  }
+}
+
+function removeRule(type, match, amount = "") {
+  if (!type || !match || !state.categorizationRules) {
+    return;
+  }
+  const rules = state.categorizationRules;
+  if (type === "keyword") {
+    delete rules.keywords[match.toLowerCase()];
+  } else if (type === "shortDescription") {
+    delete rules.shortDescriptions[match.toLowerCase()];
+  } else if (type === "transferAccount") {
+    delete rules.transferAccounts[match.toUpperCase()];
+  } else if (type === "travelCategory") {
+    delete rules.travelCategories[match.toUpperCase()];
+  } else if (type === "amountOverride" && rules.amountOverrides[match]) {
+    delete rules.amountOverrides[match][amount];
+    if (!Object.keys(rules.amountOverrides[match]).length) {
+      delete rules.amountOverrides[match];
+    }
+  }
+}
+
+async function persistCategorizationRules(message) {
+  const payload = await apiRequest("/categorization-rules", { method: "PUT", body: { rules: state.categorizationRules } });
+  state.categorizationRules = normalizeRules(payload.rules);
+  renderRulesList();
+  setStatus(message);
+}
+
+function clearRuleForm() {
+  elements.ruleOriginalType.value = "";
+  elements.ruleOriginalMatch.value = "";
+  elements.ruleOriginalAmount.value = "";
+  elements.ruleType.value = "keyword";
+  elements.ruleMatch.value = "";
+  elements.ruleAmount.value = "";
+  elements.ruleValue.value = "";
+  updateRuleFormMode();
+}
+
+function updateRuleFormMode() {
+  const isAmountOverride = elements.ruleType.value === "amountOverride";
+  elements.ruleAmount.closest(".auth-field").classList.toggle("hidden", !isAmountOverride);
+  elements.ruleMatch.placeholder = isAmountOverride ? "PayPal (Temp)" : "paypal, salary, NL04ABNA...";
+  elements.ruleValue.placeholder = isAmountOverride ? "ChatGPT" : "Food & Household Supplies";
 }
 
 function updateSettings() {

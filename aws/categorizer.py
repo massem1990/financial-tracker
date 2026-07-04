@@ -1,4 +1,6 @@
 import json
+import os
+import time
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
@@ -64,6 +66,22 @@ def categorize_transaction(row, fill_missing_only=True):
 
 
 def load_rules():
+    bucket = os.getenv("CATEGORIZATION_RULES_BUCKET")
+    key = os.getenv("CATEGORIZATION_RULES_KEY", "metadata/category-rules.json")
+    if bucket:
+        now = time.time()
+        cached_at = getattr(load_rules, "_cache_loaded_at", 0)
+        if not hasattr(load_rules, "_cache") or now - cached_at > 30:
+            import boto3
+
+            try:
+                item = boto3.client("s3").get_object(Bucket=bucket, Key=key)
+                load_rules._cache = json.loads(item["Body"].read().decode("utf-8"))
+            except Exception:
+                load_rules._cache = json.loads(RULES_PATH.read_text(encoding="utf-8"))
+            load_rules._cache_loaded_at = now
+        return load_rules._cache
+
     if not hasattr(load_rules, "_cache"):
         load_rules._cache = json.loads(RULES_PATH.read_text(encoding="utf-8"))
     return load_rules._cache

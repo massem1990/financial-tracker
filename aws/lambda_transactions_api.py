@@ -1,6 +1,7 @@
 import json
 import os
 from datetime import datetime, timezone
+from pathlib import Path
 from urllib.parse import unquote
 from uuid import uuid4
 
@@ -22,6 +23,13 @@ def handler(event, context):
 
         if path.endswith("/health"):
             return response(200, {"ok": True, "service": "financial-tracker-api"})
+
+        if path.endswith("/categorization-rules") and method == "GET":
+            return response(200, {"rules": fetch_categorization_rules()})
+
+        if path.endswith("/categorization-rules") and method == "PUT":
+            rules = save_categorization_rules(read_json_body(event))
+            return response(200, {"rules": rules, "metadata": bump_app_state("categorization-rules-updated")})
 
         if path.endswith("/transactions") or path == "/":
             params = event.get("queryStringParameters") or {}
@@ -221,6 +229,77 @@ def fetch_app_state_safely():
         return json.loads(item["Body"].read().decode("utf-8"))
     except Exception:
         return None
+
+
+def fetch_categorization_rules():
+    bucket = os.getenv("CATEGORIZATION_RULES_BUCKET") or os.getenv("APP_STATE_BUCKET")
+    key = os.getenv("CATEGORIZATION_RULES_KEY", "metadata/category-rules.json")
+    if bucket:
+        import boto3
+
+        try:
+            item = boto3.client("s3").get_object(Bucket=bucket, Key=key)
+            return sanitize_rules(json.loads(item["Body"].read().decode("utf-8")))
+        except Exception as error:
+            if getattr(error, "response", {}).get("Error", {}).get("Code") not in {"NoSuchKey", "404", "NoSuchBucket"}:
+                raise
+
+    local_path = Path(__file__).with_name("category_rules.json")
+    return sanitize_rules(json.loads(local_path.read_text(encoding="utf-8")))
+
+
+def save_categorization_rules(payload):
+    rules = sanitize_rules(payload.get("rules") if isinstance(payload, dict) and "rules" in payload else payload)
+    bucket = os.getenv("CATEGORIZATION_RULES_BUCKET") or os.getenv("APP_STATE_BUCKET")
+    key = os.getenv("CATEGORIZATION_RULES_KEY", "metadata/category-rules.json")
+    if not bucket:
+        raise RuntimeError("APP_STATE_BUCKET or CATEGORIZATION_RULES_BUCKET is required.")
+
+    import boto3
+
+    boto3.client("s3").put_object(
+        Bucket=bucket,
+        Key=key,
+        Body=json.dumps(rules, indent=2, sort_keys=True).encode("utf-8"),
+        ContentType="application/json",
+        CacheControl="no-store, no-cache, max-age=0, must-revalidate",
+    )
+    return rules
+
+
+def sanitize_rules(rules):
+    rules = rules if isinstance(rules, dict) else {}
+    sanitized = {
+        "keywords": clean_rule_map(rules.get("keywords")),
+        "shortDescriptions": clean_rule_map(rules.get("shortDescriptions")),
+        "transferAccounts": clean_rule_map(rules.get("transferAccounts"), uppercase_keys=True),
+        "travelCategories": clean_rule_map(rules.get("travelCategories"), uppercase_keys=True),
+        "amountOverrides": {},
+        "tempAmountOverrideCategory": clean_text(rules.get("tempAmountOverrideCategory")) or "Online Subscriptions",
+    }
+
+    amount_overrides = rules.get("amountOverrides") if isinstance(rules.get("amountOverrides"), dict) else {}
+    for category, overrides in amount_overrides.items():
+        category_name = clean_text(category)
+        if not category_name or not isinstance(overrides, dict):
+            continue
+        cleaned = clean_rule_map(overrides)
+        if cleaned:
+            sanitized["amountOverrides"][category_name] = cleaned
+
+    return sanitized
+
+
+def clean_rule_map(value, uppercase_keys=False):
+    if not isinstance(value, dict):
+        return {}
+    cleaned = {}
+    for key, item in value.items():
+        clean_key = clean_text(key)
+        clean_value = clean_text(item)
+        if clean_key and clean_value:
+            cleaned[clean_key.upper() if uppercase_keys else clean_key.lower()] = clean_value
+    return dict(sorted(cleaned.items()))
 
 
 def fetch_sync_status(sync_id):

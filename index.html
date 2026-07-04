@@ -406,6 +406,57 @@
           <button class="secondary-button" id="resetCategoriesButton" type="button">Reset categories</button>
           <button class="primary-button" id="csvRefreshButton" type="button">Refresh data</button>
         </div>
+
+        <section class="rules-settings" aria-label="Categorisation rules">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Automation</p>
+              <h3>Categorisation rules</h3>
+              <p class="helper-text">Rules apply during GoCardless sync. Newer matching rules can change future uncategorized transactions.</p>
+            </div>
+            <button class="secondary-button" id="reloadRulesButton" type="button">Reload</button>
+          </div>
+
+          <label class="auth-field">
+            <span>Search rules</span>
+            <input id="ruleSearchInput" type="search" placeholder="albert heijn, salary, paypal..." autocomplete="off" />
+          </label>
+
+          <div class="rule-editor-card">
+            <input id="ruleOriginalType" type="hidden" />
+            <input id="ruleOriginalMatch" type="hidden" />
+            <input id="ruleOriginalAmount" type="hidden" />
+            <label class="auth-field">
+              <span>Rule type</span>
+              <select id="ruleType">
+                <option value="keyword">Keyword → category</option>
+                <option value="shortDescription">Keyword → short description</option>
+                <option value="transferAccount">IBAN/account → transfer name</option>
+                <option value="travelCategory">Keyword → travel tag</option>
+                <option value="amountOverride">Category + amount → short description</option>
+              </select>
+            </label>
+            <label class="auth-field">
+              <span>Match text / category</span>
+              <input id="ruleMatch" type="text" placeholder="paypal, salary, NL04ABNA..." />
+            </label>
+            <label class="auth-field rule-amount-field">
+              <span>Amount override</span>
+              <input id="ruleAmount" type="text" inputmode="decimal" placeholder="-22.99" />
+            </label>
+            <label class="auth-field">
+              <span>Result</span>
+              <input id="ruleValue" type="text" placeholder="Food & Household Supplies" />
+            </label>
+            <div class="dialog-actions">
+              <button class="secondary-button" id="clearRuleFormButton" type="button">Clear</button>
+              <button class="primary-button" id="saveRuleButton" type="button">Save rule</button>
+            </div>
+          </div>
+
+          <div class="rules-summary" id="rulesSummary">No rules loaded yet.</div>
+          <ol class="rules-list" id="rulesList"></ol>
+        </section>
       </form>
     </dialog>
 
