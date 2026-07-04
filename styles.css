@@ -1179,19 +1179,39 @@ h2 {
 
 .transaction-item.compact {
   padding: 0;
+  overflow: hidden;
   box-shadow: none;
 }
 
 .transaction-compact-button {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   width: 100%;
   gap: 10px;
-  padding: 10px;
+  padding: 12px;
   border: 0;
   border-radius: inherit;
   background: transparent;
   color: inherit;
+  text-align: left;
+}
+
+.transaction-compact-button .transaction-main {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.transaction-compact-button .transaction-title {
+  display: -webkit-box;
+  overflow: hidden;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.transaction-compact-button .transaction-amount {
+  justify-self: start;
   text-align: left;
 }
 
@@ -1211,11 +1231,13 @@ h2 {
 
 .category-dialog {
   width: min(92vw, 500px);
-  max-height: min(86vh, 760px);
+  max-width: 100vw;
+  max-height: min(88dvh, 760px);
   border: 0;
   border-radius: 8px;
   padding: 0;
   background: transparent;
+  overflow: hidden;
 }
 
 .category-dialog::backdrop {
@@ -1260,6 +1282,7 @@ h2 {
   line-height: 1.18;
 }
 
+.category-dialog-close,
 .category-search-close {
   min-width: 46px;
   min-height: 46px;
@@ -1340,8 +1363,26 @@ h2 {
 }
 
 .category-dialog .settings-form {
-  max-height: min(86vh, 760px);
-  overflow: auto;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  max-height: min(88dvh, 760px);
+  overflow: hidden;
+}
+
+.category-dialog .dialog-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+}
+
+.category-dialog .dialog-heading h2 {
+  display: -webkit-box;
+  max-height: 3.8em;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: clamp(1.15rem, 5vw, 1.55rem);
+  line-height: 1.18;
 }
 
 .category-dialog-summary {
@@ -1393,8 +1434,11 @@ h2 {
 }
 
 .compact-list {
-  max-height: 46vh;
+  min-height: 0;
+  max-height: none;
   overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .hidden {
@@ -1434,6 +1478,19 @@ h2 {
 }
 
 @media (max-width: 620px) {
+  .category-dialog {
+    width: 100%;
+    max-width: none;
+    max-height: 88dvh;
+    margin: auto 0 0;
+  }
+
+  .category-dialog .settings-form {
+    max-height: 88dvh;
+    border-radius: 16px 16px 0 0;
+    padding-bottom: calc(18px + env(safe-area-inset-bottom));
+  }
+
   .category-search-dialog {
     width: 100%;
     max-width: none;
