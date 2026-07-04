@@ -1972,7 +1972,7 @@ function getCategoryMeta(category) {
 
 function getTransactionType(transaction) {
   const meta = getCategoryMeta(transaction.category);
-  return meta.type || transaction.type || (transaction.amount > 0 ? "Income" : "");
+  return meta.type || transaction.type || "";
 }
 
 function getTransactionTitle(transaction) {
