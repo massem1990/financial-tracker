@@ -70,6 +70,7 @@ const state = {
   lastLoadedAt: 0,
   lastResumeRefreshAt: 0,
   editingTransactionId: "",
+  categorySearchTransactionId: "",
   openCategoryDialogName: "",
   categoryOverrides: CONFIG.apiBaseUrl ? {} : loadCategoryOverrides(),
 };
@@ -140,6 +141,10 @@ const elements = {
   categoryDialogTitle: document.querySelector("#categoryDialogTitle"),
   categoryDialogSummary: document.querySelector("#categoryDialogSummary"),
   categoryDialogList: document.querySelector("#categoryDialogList"),
+  categorySearchDialog: document.querySelector("#categorySearchDialog"),
+  categorySearchTitle: document.querySelector("#categorySearchTitle"),
+  categorySearchInput: document.querySelector("#categorySearchInput"),
+  categorySearchList: document.querySelector("#categorySearchList"),
   transactionEditDialog: document.querySelector("#transactionEditDialog"),
   transactionEditTitle: document.querySelector("#transactionEditTitle"),
   transactionEditSummary: document.querySelector("#transactionEditSummary"),
@@ -276,6 +281,30 @@ elements.categoryDialogList.addEventListener("click", (event) => {
   }
 
   openTransactionCategoryDialog(button.dataset.transactionId);
+});
+
+elements.categorySearchInput.addEventListener("input", () => {
+  renderCategorySearchOptions();
+});
+
+elements.categorySearchInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+  }
+});
+
+elements.categorySearchList.addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-category-name]");
+  if (!button) {
+    return;
+  }
+
+  await chooseCategoryFromSearch(button.dataset.categoryName);
+});
+
+elements.categorySearchDialog.addEventListener("close", () => {
+  state.categorySearchTransactionId = "";
+  elements.categorySearchInput.value = "";
 });
 
 if (elements.exportCategoriesButton) {
@@ -2057,10 +2086,7 @@ function renderUncategorizedTransactions(transactions) {
         <div class="transaction-title"></div>
         <div class="transaction-meta"></div>
         <div class="transaction-date"></div>
-        <label class="category-picker quick-category-picker">
-          <span>Apply category</span>
-          <select></select>
-        </label>
+        <button class="category-picker-button quick-category-picker" type="button">Apply category</button>
       </div>
       <div class="transaction-amount expense"></div>
     `;
@@ -2069,7 +2095,7 @@ function renderUncategorizedTransactions(transactions) {
     item.querySelector(".transaction-meta").textContent = [getTransactionAccountName(transaction), transaction.description].filter(Boolean).join(" - ");
     item.querySelector(".transaction-date").textContent = formatTransactionDateLabel(transaction);
     item.querySelector(".transaction-amount").textContent = CURRENCY.format(transaction.amount);
-    setupCategorySelect(item.querySelector("select"), transaction);
+    setupCategoryButton(item.querySelector(".category-picker-button"), transaction, "Apply category");
     fragment.append(item);
   });
 
@@ -2109,10 +2135,7 @@ function renderTransactions(transactions) {
         <div class="transaction-title"></div>
         <div class="transaction-meta"></div>
         <div class="transaction-date"></div>
-        <label class="category-picker">
-          <span>Category</span>
-          <select></select>
-        </label>
+        <button class="category-picker-button" type="button"></button>
       </div>
       <div class="transaction-amount ${amountType}"></div>
     `;
@@ -2121,7 +2144,7 @@ function renderTransactions(transactions) {
     item.querySelector(".transaction-meta").textContent = [transaction.category, transaction.travelTag, getTransactionAccountName(transaction)].filter(Boolean).join(" - ");
     item.querySelector(".transaction-date").textContent = formatTransactionDateLabel(transaction);
     item.querySelector(".transaction-amount").textContent = CURRENCY.format(transaction.amount);
-    setupCategorySelect(item.querySelector("select"), transaction);
+    setupCategoryButton(item.querySelector(".category-picker-button"), transaction);
 
     fragment.append(item);
   });
@@ -2135,46 +2158,102 @@ function renderTransactions(transactions) {
   }
 }
 
-function setupCategorySelect(select, transaction) {
-  const currentCategory = transaction.category || "Uncategorized";
-  const categories = state.categories.length
-    ? state.categories
-    : [{ name: currentCategory, bucket: "Current", type: "" }];
+function setupCategoryButton(button, transaction, fallbackLabel = "") {
+  button.textContent = transaction.category || fallbackLabel || "Choose category";
+  button.addEventListener("click", () => openCategorySearch(transaction.id));
+}
 
-  if (CONFIG.apiBaseUrl && currentCategory !== "Uncategorized") {
-    select.append(new Option("Uncategorized", "Uncategorized"));
+function openCategorySearch(transactionId) {
+  const transaction = state.allTransactions.find((item) => item.id === transactionId);
+  if (!transaction) {
+    setStatus("Could not find that transaction anymore. Refresh and try again.");
+    return;
   }
 
-  if (!categories.some((category) => category.name === currentCategory)) {
-    select.append(new Option(currentCategory, currentCategory));
+  state.categorySearchTransactionId = transaction.id;
+  elements.categorySearchTitle.textContent = getTransactionTitle(transaction);
+  elements.categorySearchInput.value = "";
+  renderCategorySearchOptions();
+  elements.categorySearchDialog.showModal();
+  window.setTimeout(() => elements.categorySearchInput.focus(), 60);
+}
+
+function renderCategorySearchOptions() {
+  const transaction = state.allTransactions.find((item) => item.id === state.categorySearchTransactionId);
+  const currentCategory = transaction?.category || "Uncategorized";
+  const query = elements.categorySearchInput.value.trim().toLowerCase();
+  const categories = getCategorySearchOptions(currentCategory).filter((category) => {
+    const searchable = [category.name, category.bucket, category.type].filter(Boolean).join(" ").toLowerCase();
+    return !query || searchable.includes(query);
+  });
+
+  elements.categorySearchList.innerHTML = "";
+  if (!categories.length) {
+    elements.categorySearchList.innerHTML = '<p class="empty-inline">No category matches that search.</p>';
+    return;
   }
 
-  let currentGroup = "";
-  let group = null;
-  categories.forEach((category) => {
-    if (category.bucket !== currentGroup) {
-      currentGroup = category.bucket;
-      group = document.createElement("optgroup");
-      group.label = currentGroup;
-      select.append(group);
+  const fragment = document.createDocumentFragment();
+  let currentBucket = "";
+  categories.slice(0, 80).forEach((category) => {
+    if (category.bucket !== currentBucket) {
+      currentBucket = category.bucket;
+      const heading = document.createElement("h3");
+      heading.className = "category-search-bucket";
+      heading.textContent = currentBucket || "Other";
+      fragment.append(heading);
     }
 
-    const option = new Option(category.name, category.name);
-    option.dataset.type = category.type;
-    group.append(option);
+    const button = document.createElement("button");
+    button.className = "category-search-option";
+    button.type = "button";
+    button.dataset.categoryName = category.name;
+    button.innerHTML = `
+      <span class="category-search-name"></span>
+      <span class="category-search-meta"></span>
+      <span class="category-search-check" aria-hidden="true"></span>
+    `;
+    button.querySelector(".category-search-name").textContent = category.name;
+    button.querySelector(".category-search-meta").textContent = [category.type, category.monthlyBudget ? CURRENCY.format(category.monthlyBudget) : ""]
+      .filter(Boolean)
+      .join(" - ");
+    button.querySelector(".category-search-check").textContent = category.name === currentCategory ? "✓" : "";
+    fragment.append(button);
   });
 
-  select.value = currentCategory;
-  select.addEventListener("change", async () => {
-    const nextCategory = select.value;
-    try {
-      await saveTransactionCategory(transaction, nextCategory);
-    } catch (error) {
-      transaction.category = currentCategory;
-      select.value = currentCategory;
-      setStatus(`Could not save category change. ${error.message}`);
-    }
+  elements.categorySearchList.append(fragment);
+}
+
+function getCategorySearchOptions(currentCategory) {
+  const options = [];
+  if (CONFIG.apiBaseUrl || currentCategory === "Uncategorized") {
+    options.push({ name: "Uncategorized", bucket: "Current", type: "" });
+  }
+
+  if (currentCategory && currentCategory !== "Uncategorized" && !state.categories.some((category) => category.name === currentCategory)) {
+    options.push({ name: currentCategory, bucket: "Current", type: "" });
+  }
+
+  return [...options, ...state.categories].sort((a, b) => {
+    const bucketCompare = String(a.bucket || "").localeCompare(String(b.bucket || ""));
+    return bucketCompare || a.name.localeCompare(b.name);
   });
+}
+
+async function chooseCategoryFromSearch(nextCategory) {
+  const transaction = state.allTransactions.find((item) => item.id === state.categorySearchTransactionId);
+  if (!transaction) {
+    return;
+  }
+
+  const previousCategory = transaction.category;
+  try {
+    await saveTransactionCategory(transaction, nextCategory);
+    elements.categorySearchDialog.close();
+  } catch (error) {
+    transaction.category = previousCategory;
+    setStatus(`Could not save category change. ${error.message}`);
+  }
 }
 
 async function saveTransactionCategory(transaction, nextCategory) {

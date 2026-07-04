@@ -271,6 +271,23 @@
       </form>
     </dialog>
 
+    <dialog class="category-search-dialog" id="categorySearchDialog">
+      <form method="dialog" class="settings-form">
+        <div class="dialog-heading">
+          <div>
+            <p class="eyebrow">Apply category</p>
+            <h2 id="categorySearchTitle">Choose category</h2>
+          </div>
+          <button class="icon-button" type="submit" aria-label="Close category search">Close</button>
+        </div>
+        <label class="search-field category-search-field">
+          <span>Search categories</span>
+          <input id="categorySearchInput" type="search" placeholder="Food, rent, travel..." autocomplete="off" />
+        </label>
+        <div class="category-search-list" id="categorySearchList"></div>
+      </form>
+    </dialog>
+
     <dialog class="category-edit-dialog" id="categoryEditDialog">
       <form method="dialog" class="settings-form">
         <div class="dialog-heading">
