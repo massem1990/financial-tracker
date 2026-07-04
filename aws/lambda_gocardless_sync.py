@@ -9,6 +9,8 @@ import urllib.parse
 import urllib.request
 from datetime import date, datetime, timedelta, timezone
 
+from categorizer import categorize_transaction
+
 
 BASE_URL = "https://bankaccountdata.gocardless.com/api/v2"
 
@@ -32,6 +34,7 @@ def handler(event, context):
             raw_payload["accounts"][account_id] = payload
             rows.extend(normalize_transactions(account_id, payload))
 
+    rows = [categorize_transaction(row, fill_missing_only=True) for row in rows]
     csv_text = transactions_to_csv(rows)
     written = write_outputs(raw_payload, csv_text)
     database_result = upsert_transactions(rows, raw_payload, date_from, date_to) if write_database else None
@@ -137,6 +140,10 @@ def transactions_to_csv(rows):
         "description",
         "bankTransactionCode",
         "proprietaryBankTransactionCode",
+        "shortDescription",
+        "overrideMonth",
+        "travelTag",
+        "accountFriendlyName",
     ]
     output = io.StringIO()
     writer = csv.DictWriter(output, fieldnames=headers)
@@ -238,6 +245,10 @@ def upsert_transaction_rows(client, resource_arn, secret_arn, database, rows, sy
                 nullable_string_param("description", row.get("description")),
                 nullable_string_param("bank_transaction_code", row.get("bankTransactionCode")),
                 nullable_string_param("proprietary_bank_transaction_code", row.get("proprietaryBankTransactionCode")),
+                nullable_string_param("short_description", row.get("shortDescription")),
+                nullable_string_param("override_month", row.get("overrideMonth")),
+                nullable_string_param("travel_tag", row.get("travelTag")),
+                nullable_string_param("account_friendly_name", row.get("accountFriendlyName")),
                 string_param("raw_transaction", json.dumps(row)),
                 long_param("sync_run_id", sync_run_id),
             ]
@@ -265,6 +276,10 @@ def upsert_transaction_rows(client, resource_arn, secret_arn, database, rows, sy
               description,
               bank_transaction_code,
               proprietary_bank_transaction_code,
+              short_description,
+              override_month,
+              travel_tag,
+              account_friendly_name,
               raw_transaction,
               last_sync_run_id
             )
@@ -283,6 +298,10 @@ def upsert_transaction_rows(client, resource_arn, secret_arn, database, rows, sy
               :description,
               :bank_transaction_code,
               :proprietary_bank_transaction_code,
+              :short_description,
+              :override_month,
+              :travel_tag,
+              :account_friendly_name,
               CAST(:raw_transaction AS jsonb),
               :sync_run_id
             )
@@ -298,6 +317,10 @@ def upsert_transaction_rows(client, resource_arn, secret_arn, database, rows, sy
               description = EXCLUDED.description,
               bank_transaction_code = EXCLUDED.bank_transaction_code,
               proprietary_bank_transaction_code = EXCLUDED.proprietary_bank_transaction_code,
+              short_description = COALESCE(transactions.short_description, EXCLUDED.short_description),
+              override_month = COALESCE(transactions.override_month, EXCLUDED.override_month),
+              travel_tag = COALESCE(transactions.travel_tag, EXCLUDED.travel_tag),
+              account_friendly_name = COALESCE(transactions.account_friendly_name, EXCLUDED.account_friendly_name),
               raw_transaction = EXCLUDED.raw_transaction,
               last_sync_run_id = EXCLUDED.last_sync_run_id,
               updated_at = now()

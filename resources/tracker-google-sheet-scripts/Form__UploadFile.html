@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <link rel="stylesheet" href="https://ssl.gstatic.com/docs/script/css/add-ons1.css">
+  </head>
+  <script>
+    function getFiles() {
+      document.getElementById("uploadButton").disabled = true;
+      const progressText = document.getElementById("progress");
+      const f = document.getElementById('files');
+      var uploadCompletedCount = 0;
+      progressText.innerHTML = "Uploading file " + (uploadCompletedCount + 1) + "/" + [...f.files].length + "";
+      [...f.files].forEach((file, i) => {
+        const fr = new FileReader();
+        fr.onload = (e) => {
+          const data = e.target.result.split(",");
+          const obj = {fileName: f.files[i].name, mimeType: data[0].match(/:(\w.+);/)[1], data: data[1]};
+          google.script.run.withSuccessHandler((id) => {
+            uploadCompletedCount++;
+            progressText.innerHTML = "Upload completed";
+            if (uploadCompletedCount >= [...f.files].length){
+              google.script.host.close();
+            }
+            else{
+              progressText.innerHTML = "Uploading file " + (uploadCompletedCount + 1) + "/" + [...f.files].length + "";
+            }
+          }).saveFile(obj);
+        }
+        fr.readAsDataURL(file);
+      });
+      
+    }
+  </script>
+  <body>
+    <input type="file" name="upload" id="files" multiple/>
+    <input type='button' id="uploadButton" value='Upload' onclick='getFiles()' class="action"> 
+    <br>
+    <div id="progress"> </div>
+  </body>
+</html>
