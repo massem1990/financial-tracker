@@ -3,6 +3,7 @@
 .gocardless/
 secrets.txt
 app-config.js
+.clasp.json
 .DS_Store
 *.pyc
 __pycache__/
