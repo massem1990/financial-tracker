@@ -96,6 +96,7 @@ const elements = {
   investShare: document.querySelector("#investShare"),
   savingsTotal: document.querySelector("#savingsTotal"),
   savingsShare: document.querySelector("#savingsShare"),
+  transactionSearchField: document.querySelector("#transactionSearchField"),
   searchInput: document.querySelector("#searchInput"),
   statusPanel: document.querySelector("#statusPanel"),
   accountFilter: document.querySelector("#accountFilter"),
@@ -251,7 +252,7 @@ elements.trendCategorySelect.addEventListener("change", () => {
 
 elements.categoryMode.addEventListener("change", () => {
   state.categoryMode = elements.categoryMode.value;
-  renderOverview(getFilteredTransactions({ includeSearch: true }));
+  renderOverview(getFilteredTransactions({ includeSearch: false }));
 });
 
 elements.categoryCreateForm.addEventListener("submit", async (event) => {
@@ -748,10 +749,6 @@ async function fetchApiTransactions() {
 
   for (let page = 0; page < 30; page += 1) {
     const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
-    if (state.search) {
-      params.set("search", state.search);
-    }
-
     const payload = await apiRequest(`/transactions?${params.toString()}`);
     transactions.push(...payload.transactions.map(apiTransactionToAppTransaction));
     if (payload.nextOffset === null || payload.nextOffset === undefined) {
@@ -1142,7 +1139,8 @@ function populateTrendCategories() {
 function render() {
   renderActiveView();
   updateSalaryPeriodControls();
-  const transactions = getFilteredTransactions({ includeSearch: true });
+  const transactions = getFilteredTransactions({ includeSearch: false });
+  const searchedTransactions = getFilteredTransactions({ includeSearch: state.selectedView === "transactions" });
   renderSummary(transactions);
   renderOverview(transactions);
   populateTrendCategories();
@@ -1150,10 +1148,11 @@ function render() {
   renderLatestAccounts();
   renderCategoryEditor();
   renderUncategorizedTransactions(transactions);
-  renderTransactions(transactions);
+  renderTransactions(searchedTransactions);
 }
 
 function renderActiveView() {
+  elements.transactionSearchField.classList.toggle("hidden", state.selectedView !== "transactions");
   elements.overviewView.classList.toggle("hidden", state.selectedView !== "overview");
   elements.trendsView.classList.toggle("hidden", state.selectedView !== "trends");
   elements.accountsView.classList.toggle("hidden", state.selectedView !== "accounts");
@@ -1584,7 +1583,7 @@ function getMonthlyCategoryRows(category) {
 function openCategoryDialog(category) {
   state.openCategoryDialogName = category;
   const meta = getCategoryMeta(category);
-  const transactions = getFilteredTransactions({ includeSearch: true }).filter((transaction) => transaction.category === category);
+  const transactions = getFilteredTransactions({ includeSearch: false }).filter((transaction) => transaction.category === category);
   const total = transactions.reduce((sum, transaction) => sum + transaction.amount, 0);
   const budget = meta.monthlyBudget || 0;
 
