@@ -16,25 +16,45 @@ BASE_URL = "https://bankaccountdata.gocardless.com/api/v2"
 
 
 def handler(event, context):
-    dry_run = env_bool("DRY_RUN", default=True)
-    write_database = env_bool("WRITE_DATABASE", default=False)
-    date_to = event.get("date_to") or os.getenv("DATE_TO") or date.today().isoformat()
-    date_from = event.get("date_from") or os.getenv("DATE_FROM") or (date.today() - timedelta(days=7)).isoformat()
+    event = event or {}
+    dry_run = event_bool(event, "dry_run", env_bool("DRY_RUN", default=True))
+    write_database = event_bool(event, "write_database", env_bool("WRITE_DATABASE", default=False))
+    date_to = event.get("date_to") or event.get("dateTo") or os.getenv("DATE_TO") or date.today().isoformat()
     account_ids = get_account_ids(event)
+    sync_plan = build_sync_plan(event, account_ids, date_to, write_database and not dry_run)
+    date_from = sync_plan["dateFrom"]
 
     if dry_run:
         rows = sample_transactions(date_from, date_to)
-        raw_payload = {"mode": "dry_run", "transactions": rows}
+        raw_payload = {"mode": "dry_run", "transactions": rows, "syncPlan": sync_plan}
+        per_account_stats = [{"accountId": "dry-run-account", "dateFrom": date_from, "dateTo": date_to, "retrieved": len(rows)}]
     else:
         token = get_access_token()
         rows = []
-        raw_payload = {"mode": "live", "accounts": {}}
+        raw_payload = {"mode": "live", "accounts": {}, "syncPlan": sync_plan}
+        per_account_stats = []
         for account_id in account_ids:
-            payload = fetch_account_transactions(token, account_id, date_from, date_to)
-            raw_payload["accounts"][account_id] = payload
-            rows.extend(normalize_transactions(account_id, payload))
+            account_date_from = sync_plan["accounts"].get(account_id, {}).get("dateFrom", date_from)
+            payload = fetch_account_transactions(token, account_id, account_date_from, date_to)
+            account_rows = normalize_transactions(account_id, payload)
+            raw_payload["accounts"][account_id] = {
+                "dateFrom": account_date_from,
+                "dateTo": date_to,
+                "response": payload,
+            }
+            per_account_stats.append(
+                {
+                    "accountId": account_id,
+                    "dateFrom": account_date_from,
+                    "dateTo": date_to,
+                    "retrieved": len(account_rows),
+                    "booked": len(payload.get("transactions", {}).get("booked", [])),
+                    "pending": len(payload.get("transactions", {}).get("pending", [])),
+                }
+            )
+            rows.extend(account_rows)
 
-    rows = [categorize_transaction(row, fill_missing_only=True) for row in rows]
+    rows, categorization_stats = categorize_rows(rows)
     csv_text = transactions_to_csv(rows)
     written = write_outputs(raw_payload, csv_text)
     database_result = upsert_transactions(rows, raw_payload, date_from, date_to) if write_database else None
@@ -48,10 +68,102 @@ def handler(event, context):
         "dateTo": date_to,
         "accountCount": len(account_ids),
         "transactionCount": len(rows),
+        "categorization": categorization_stats,
+        "accounts": per_account_stats,
         "written": written,
         "database": database_result,
         "metadata": metadata,
     }
+
+
+def build_sync_plan(event, account_ids, date_to, use_database):
+    explicit_date_from = event.get("date_from") or event.get("dateFrom") or os.getenv("DATE_FROM")
+    if explicit_date_from:
+        return {
+            "strategy": "explicit",
+            "dateFrom": explicit_date_from,
+            "dateTo": date_to,
+            "overlapDays": 0,
+            "accounts": {account_id: {"dateFrom": explicit_date_from, "dateTo": date_to} for account_id in account_ids},
+        }
+
+    overlap_days = int(event.get("overlap_days") or event.get("overlapDays") or os.getenv("SYNC_OVERLAP_DAYS", "14"))
+    initial_lookback_days = int(
+        event.get("initial_lookback_days") or event.get("initialLookbackDays") or os.getenv("INITIAL_LOOKBACK_DAYS", "90")
+    )
+    fallback_from = shift_iso_date(date_to, -initial_lookback_days)
+    latest_by_account = fetch_latest_dates_by_account() if use_database else {}
+
+    accounts = {}
+    for account_id in account_ids:
+        latest_date = latest_by_account.get(account_id)
+        account_date_from = shift_iso_date(latest_date, -overlap_days) if latest_date else fallback_from
+        accounts[account_id] = {
+            "dateFrom": account_date_from,
+            "dateTo": date_to,
+            "latestStoredDate": latest_date,
+            "usedFallback": latest_date is None,
+        }
+
+    all_dates = [account["dateFrom"] for account in accounts.values()] or [fallback_from]
+    return {
+        "strategy": "latest-stored-date-with-overlap" if use_database else "fallback-lookback",
+        "dateFrom": min(all_dates),
+        "dateTo": date_to,
+        "overlapDays": overlap_days,
+        "initialLookbackDays": initial_lookback_days,
+        "accounts": accounts,
+    }
+
+
+def fetch_latest_dates_by_account():
+    if not all(os.getenv(name) for name in ["DB_CLUSTER_ARN", "DB_SECRET_ARN", "DB_NAME"]):
+        return {}
+
+    import boto3
+
+    client = boto3.client("rds-data")
+    result = execute_statement(
+        client,
+        os.getenv("DB_CLUSTER_ARN"),
+        os.getenv("DB_SECRET_ARN"),
+        os.getenv("DB_NAME"),
+        """
+        SELECT account_id, MAX(COALESCE(booking_date, value_date))::text AS latest_date
+        FROM transactions
+        WHERE provider = 'gocardless'
+        GROUP BY account_id
+        """,
+    )
+    latest = {}
+    for record in result.get("records", []):
+        account_id = read_value(record[0])
+        latest_date = read_value(record[1])
+        if account_id and latest_date:
+            latest[account_id] = latest_date
+    return latest
+
+
+def shift_iso_date(value, days):
+    return (date.fromisoformat(value) + timedelta(days=days)).isoformat()
+
+
+def categorize_rows(rows):
+    stats = {"autoCategorized": 0, "shortDescriptions": 0, "travelTags": 0}
+    categorized_rows = []
+    for row in rows:
+        had_category = bool(row.get("proprietaryBankTransactionCode"))
+        had_short_description = bool(row.get("shortDescription"))
+        had_travel_tag = bool(row.get("travelTag"))
+        categorized = categorize_transaction(row, fill_missing_only=True)
+        if not had_category and categorized.get("proprietaryBankTransactionCode"):
+            stats["autoCategorized"] += 1
+        if not had_short_description and categorized.get("shortDescription"):
+            stats["shortDescriptions"] += 1
+        if not had_travel_tag and categorized.get("travelTag"):
+            stats["travelTags"] += 1
+        categorized_rows.append(categorized)
+    return categorized_rows, stats
 
 
 def get_account_ids(event):
@@ -146,7 +258,7 @@ def transactions_to_csv(rows):
         "accountFriendlyName",
     ]
     output = io.StringIO()
-    writer = csv.DictWriter(output, fieldnames=headers)
+    writer = csv.DictWriter(output, fieldnames=headers, extrasaction="ignore")
     writer.writeheader()
     writer.writerows(rows)
     return output.getvalue()
@@ -495,6 +607,24 @@ def env_bool(name, default=False):
     if value is None:
         return default
     return value.lower() in {"1", "true", "yes", "y"}
+
+
+def event_bool(event, key, default=False):
+    if key not in event:
+        return default
+    value = event.get(key)
+    if isinstance(value, bool):
+        return value
+    return str(value).lower() in {"1", "true", "yes", "y"}
+
+
+def read_value(field):
+    if not field or field.get("isNull"):
+        return None
+    for key in ("stringValue", "longValue", "doubleValue", "booleanValue"):
+        if key in field:
+            return field[key]
+    return None
 
 
 def require_env(name):

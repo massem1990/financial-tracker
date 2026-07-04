@@ -106,6 +106,17 @@
       </nav>
 
       <section class="status-panel hidden" id="statusPanel" role="status"></section>
+      <section class="sync-panel hidden" id="syncPanel" aria-live="polite">
+        <div class="sync-panel-header">
+          <div>
+            <p class="eyebrow">Bank sync</p>
+            <h2 id="syncTitle">Fetching transactions</h2>
+          </div>
+          <span id="syncBadge">Ready</span>
+        </div>
+        <p id="syncSummary">GoCardless sync updates will appear here.</p>
+        <ol class="sync-steps" id="syncSteps"></ol>
+      </section>
 
       <section class="view-section" id="overviewView" aria-label="Overview">
         <section class="insight-grid" aria-label="Financial breakdown">

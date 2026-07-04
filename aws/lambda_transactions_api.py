@@ -27,6 +27,10 @@ def handler(event, context):
             transactions, next_offset = fetch_transactions(params)
             return response(200, {"transactions": transactions, "nextOffset": next_offset})
 
+        if path.endswith("/sync/gocardless") and method == "POST":
+            result = run_gocardless_sync(read_json_body(event))
+            return response(200, result)
+
         if path.endswith("/categories") and method == "GET":
             return response(200, {"categories": fetch_categories()})
 
@@ -137,6 +141,69 @@ def fetch_transactions(params):
     transactions = [record_to_transaction(record) for record in result.get("records", [])]
     next_offset = offset + limit if len(transactions) == limit else None
     return transactions, next_offset
+
+
+def run_gocardless_sync(payload):
+    import boto3
+
+    function_name = os.getenv("GOCARDLESS_SYNC_FUNCTION", "financial-tracker-gocardless-sync")
+    sync_payload = {
+        "dry_run": request_bool(payload.get("dryRun", payload.get("dry_run"))) if has_any(payload, ["dryRun", "dry_run"]) else False,
+        "write_database": request_bool(payload.get("writeDatabase", payload.get("write_database")))
+        if has_any(payload, ["writeDatabase", "write_database"])
+        else True,
+    }
+
+    for source, target in [
+        ("dateFrom", "date_from"),
+        ("date_from", "date_from"),
+        ("dateTo", "date_to"),
+        ("date_to", "date_to"),
+        ("overlapDays", "overlap_days"),
+        ("overlap_days", "overlap_days"),
+        ("initialLookbackDays", "initial_lookback_days"),
+        ("initial_lookback_days", "initial_lookback_days"),
+    ]:
+        if source in payload and payload[source] not in (None, ""):
+            sync_payload[target] = payload[source]
+
+    lambda_client = boto3.client("lambda")
+    result = lambda_client.invoke(
+        FunctionName=function_name,
+        InvocationType="RequestResponse",
+        Payload=json.dumps(sync_payload).encode("utf-8"),
+    )
+    body = json.loads(result["Payload"].read().decode("utf-8") or "{}")
+    if "FunctionError" in result:
+        raise RuntimeError(body.get("errorMessage") or json.dumps(body))
+
+    metadata = body.get("metadata") or fetch_app_state_safely()
+    return {"ok": True, "sync": body, "metadata": metadata}
+
+
+def has_any(payload, keys):
+    return any(key in payload for key in keys)
+
+
+def request_bool(value):
+    if isinstance(value, bool):
+        return value
+    return str(value).lower() in {"1", "true", "yes", "y"}
+
+
+def fetch_app_state_safely():
+    bucket = os.getenv("APP_STATE_BUCKET")
+    key = os.getenv("APP_STATE_KEY", "metadata/app-state.json")
+    if not bucket:
+        return None
+
+    import boto3
+
+    try:
+        item = boto3.client("s3").get_object(Bucket=bucket, Key=key)
+        return json.loads(item["Body"].read().decode("utf-8"))
+    except Exception:
+        return None
 
 
 def record_to_transaction(record):

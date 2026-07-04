@@ -107,6 +107,11 @@ const elements = {
   transactionSearchField: document.querySelector("#transactionSearchField"),
   searchInput: document.querySelector("#searchInput"),
   statusPanel: document.querySelector("#statusPanel"),
+  syncPanel: document.querySelector("#syncPanel"),
+  syncTitle: document.querySelector("#syncTitle"),
+  syncBadge: document.querySelector("#syncBadge"),
+  syncSummary: document.querySelector("#syncSummary"),
+  syncSteps: document.querySelector("#syncSteps"),
   accountFilter: document.querySelector("#accountFilter"),
   yearFilter: document.querySelector("#yearFilter"),
   monthFilter: document.querySelector("#monthFilter"),
@@ -353,8 +358,8 @@ elements.refreshButton.addEventListener("click", () => {
   });
 });
 
-elements.fetchTransactionsButton.addEventListener("click", () => {
-  setStatus("Fetch is ready for wiring, but not connected yet. Next stop: trigger the GoCardless sync safely.");
+elements.fetchTransactionsButton.addEventListener("click", async () => {
+  await runGoCardlessSync();
 });
 
 if (elements.downloadButton) {
@@ -755,6 +760,105 @@ async function withAuroraWakeRetry(operation, loadingCopy = {}) {
   }
 
   throw lastError;
+}
+
+async function runGoCardlessSync() {
+  if (!CONFIG.apiBaseUrl) {
+    setStatus("Fetch needs the AWS backend. Local CSV mode cannot call GoCardless.");
+    return;
+  }
+
+  setStatus("");
+  renderSyncPanel({
+    title: "Starting bank sync",
+    badge: "Running",
+    summary: "Preparing a small overlap window so the bank can be fashionably late without confusing the app.",
+    steps: [{ label: "Preparing GoCardless sync request", state: "active" }],
+  });
+  elements.fetchTransactionsButton.disabled = true;
+  elements.fetchTransactionsButton.textContent = "Fetching";
+
+  try {
+    setLoading(true, "Starting bank sync", "Asking the backend to wake up, stretch, and talk to GoCardless.");
+    renderSyncPanel({
+      title: "Fetching transactions",
+      badge: "Running",
+      summary: "The backend is checking each connected account and will only insert new or changed rows.",
+      steps: [
+        { label: "Preparing GoCardless sync request", state: "done" },
+        { label: "Fetching transactions from connected accounts", state: "active" },
+      ],
+    });
+
+    const result = await withAuroraWakeRetry(
+      () => apiRequest("/sync/gocardless", { method: "POST", body: {} }),
+      {
+        title: "Waking Aurora database",
+        message: "Aurora is putting on socks before the bank sync. Give it a few seconds.",
+      }
+    );
+    const sync = result.sync || {};
+
+    renderSyncResult(sync, "Refreshing app cache");
+    await updateLocalCacheFromWrite(result.metadata || sync.metadata);
+    await loadAppData({
+      forceRefresh: true,
+      title: "Loading synced transactions",
+      message: "Pulling the fresh rows into the app cache.",
+    });
+    renderSyncResult(sync, "Done");
+  } catch (error) {
+    renderSyncPanel({
+      title: "Sync failed",
+      badge: "Error",
+      summary: error.message || "The sync did not finish.",
+      steps: [
+        { label: "Preparing GoCardless sync request", state: "done" },
+        { label: "Fetching transactions from connected accounts", state: "error" },
+      ],
+    });
+    setStatus(`Could not fetch transactions. ${error.message}`);
+  } finally {
+    setLoading(false);
+    elements.fetchTransactionsButton.disabled = false;
+    elements.fetchTransactionsButton.textContent = "Fetch";
+  }
+}
+
+function renderSyncResult(sync, finalStepLabel = "Done") {
+  const accountCount = Number(sync.accountCount || sync.accounts?.length || 0);
+  const transactionCount = Number(sync.transactionCount || 0);
+  const autoCategorized = Number(sync.categorization?.autoCategorized || 0);
+  const upserted = Number(sync.database?.upserted || 0);
+  const dateRange = sync.dateFrom && sync.dateTo ? `${sync.dateFrom} to ${sync.dateTo}` : "latest safe window";
+
+  renderSyncPanel({
+    title: "Bank sync complete",
+    badge: finalStepLabel,
+    summary: `${transactionCount} transaction${transactionCount === 1 ? "" : "s"} retrieved for ${dateRange}.`,
+    steps: [
+      { label: `Fetched from ${accountCount} account${accountCount === 1 ? "" : "s"}`, state: "done" },
+      { label: `${transactionCount} transaction${transactionCount === 1 ? "" : "s"} retrieved`, state: "done" },
+      { label: `${autoCategorized} transaction${autoCategorized === 1 ? "" : "s"} auto categorised`, state: "done" },
+      { label: `${upserted} database row${upserted === 1 ? "" : "s"} inserted or refreshed`, state: "done" },
+      { label: finalStepLabel, state: finalStepLabel === "Done" ? "done" : "active" },
+    ],
+  });
+}
+
+function renderSyncPanel({ title, badge, summary, steps }) {
+  elements.syncPanel.classList.remove("hidden");
+  elements.syncTitle.textContent = title;
+  elements.syncBadge.textContent = badge;
+  elements.syncSummary.textContent = summary;
+  elements.syncSteps.replaceChildren(
+    ...steps.map((step) => {
+      const item = document.createElement("li");
+      item.className = `sync-step ${step.state || "done"}`;
+      item.textContent = step.label;
+      return item;
+    })
+  );
 }
 
 async function fetchApiTransactions() {
