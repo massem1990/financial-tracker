@@ -1503,6 +1503,84 @@ h2 {
   font-size: 1rem;
 }
 
+.category-dialog-list {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-height: 0;
+  margin: 0;
+  padding: 0 2px 0 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  list-style: none;
+}
+
+.category-transaction-item {
+  min-width: 0;
+}
+
+.category-transaction-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+  width: 100%;
+  min-height: 66px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  color: var(--ink);
+  text-align: left;
+}
+
+.category-transaction-card:focus-visible {
+  outline: 3px solid rgba(34, 199, 173, 0.24);
+}
+
+.category-transaction-main {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+}
+
+.category-transaction-title {
+  display: -webkit-box;
+  min-width: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow-wrap: anywhere;
+  font-weight: 900;
+  line-height: 1.18;
+}
+
+.category-transaction-meta {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.category-transaction-amount {
+  align-self: start;
+  color: var(--ink);
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.category-transaction-amount.expense {
+  color: var(--danger);
+}
+
+.category-transaction-amount.income {
+  color: var(--success);
+}
+
 .transaction-edit-dialog {
   width: min(92vw, 500px);
   max-width: 100vw;

@@ -1793,25 +1793,40 @@ function openCategoryDialog(category) {
   `;
   elements.categoryDialogList.innerHTML = "";
 
+  if (!transactions.length) {
+    elements.categoryDialogList.innerHTML = '<li class="empty-inline">No transactions in this selected period.</li>';
+  }
+
   const fragment = document.createDocumentFragment();
   transactions.slice(0, 80).forEach((transaction) => {
     const item = document.createElement("li");
-    item.className = "transaction-item compact";
+    item.className = "category-transaction-item";
     item.innerHTML = `
-      <button class="transaction-compact-button" type="button" data-transaction-id="${transaction.id}">
-        <span class="transaction-main">
-          <span class="transaction-title"></span>
-          <span class="transaction-date"></span>
+      <button class="category-transaction-card" type="button" data-transaction-id="${transaction.id}">
+        <span class="category-transaction-main">
+          <span class="category-transaction-title"></span>
+          <span class="category-transaction-meta"></span>
         </span>
-        <span class="transaction-amount ${transaction.amount < 0 ? "expense" : "income"}"></span>
+        <span class="category-transaction-amount ${transaction.amount < 0 ? "expense" : "income"}"></span>
       </button>
     `;
-    item.querySelector(".transaction-title").textContent = getTransactionTitle(transaction);
-    item.querySelector(".transaction-date").textContent = formatTransactionDateLabel(transaction);
-    item.querySelector(".transaction-amount").textContent = CURRENCY.format(transaction.amount);
+    item.querySelector(".category-transaction-title").textContent = getTransactionTitle(transaction);
+    item.querySelector(".category-transaction-meta").textContent = [
+      formatTransactionDateLabel(transaction),
+      getTransactionAccountName(transaction),
+    ]
+      .filter(Boolean)
+      .join(" - ");
+    item.querySelector(".category-transaction-amount").textContent = CURRENCY.format(transaction.amount);
     fragment.append(item);
   });
   elements.categoryDialogList.append(fragment);
+  if (transactions.length > 80) {
+    const item = document.createElement("li");
+    item.className = "list-note";
+    item.textContent = `Showing first 80. Use filters to narrow ${transactions.length - 80} more.`;
+    elements.categoryDialogList.append(item);
+  }
   if (!elements.categoryDialog.open) {
     elements.categoryDialog.showModal();
   }
