@@ -114,6 +114,7 @@ const elements = {
   trendsView: document.querySelector("#trendsView"),
   accountsView: document.querySelector("#accountsView"),
   categoriesView: document.querySelector("#categoriesView"),
+  uncategorizedView: document.querySelector("#uncategorizedView"),
   transactionsView: document.querySelector("#transactionsView"),
   fetchTransactionsButton: document.querySelector("#fetchTransactionsButton"),
   latestAccountsList: document.querySelector("#latestAccountsList"),
@@ -150,6 +151,10 @@ const elements = {
   transactionCount: document.querySelector("#transactionCount"),
   transactionList: document.querySelector("#transactionList"),
   emptyState: document.querySelector("#emptyState"),
+  uncategorizedCount: document.querySelector("#uncategorizedCount"),
+  uncategorizedTotal: document.querySelector("#uncategorizedTotal"),
+  uncategorizedList: document.querySelector("#uncategorizedList"),
+  uncategorizedEmptyState: document.querySelector("#uncategorizedEmptyState"),
   downloadButton: document.querySelector("#downloadButton"),
   refreshButton: document.querySelector("#refreshButton"),
   settingsButton: document.querySelector("#settingsButton"),
@@ -1110,6 +1115,7 @@ function render() {
   renderTrends();
   renderLatestAccounts();
   renderCategoryEditor();
+  renderUncategorizedTransactions(transactions);
   renderTransactions(transactions);
 }
 
@@ -1118,6 +1124,7 @@ function renderActiveView() {
   elements.trendsView.classList.toggle("hidden", state.selectedView !== "trends");
   elements.accountsView.classList.toggle("hidden", state.selectedView !== "accounts");
   elements.categoriesView.classList.toggle("hidden", state.selectedView !== "categories");
+  elements.uncategorizedView.classList.toggle("hidden", state.selectedView !== "uncategorized");
   elements.transactionsView.classList.toggle("hidden", state.selectedView !== "transactions");
 }
 
@@ -2028,6 +2035,60 @@ function downloadCategoriesCsv() {
   link.download = "categories.csv";
   link.click();
   URL.revokeObjectURL(url);
+}
+
+function renderUncategorizedTransactions(transactions) {
+  const uncategorized = transactions.filter(isUncategorizedExpense);
+  const visibleTransactions = uncategorized.slice(0, INITIAL_RENDER_LIMIT);
+  const hiddenCount = uncategorized.length - visibleTransactions.length;
+  const total = uncategorized.reduce((sum, transaction) => sum + Math.abs(transaction.amount), 0);
+
+  elements.uncategorizedCount.textContent = `${uncategorized.length} uncategorized expense${uncategorized.length === 1 ? "" : "s"}`;
+  elements.uncategorizedTotal.textContent = `${CURRENCY.format(total)} waiting for a home`;
+  elements.uncategorizedList.innerHTML = "";
+  elements.uncategorizedEmptyState.classList.toggle("hidden", uncategorized.length > 0);
+
+  const fragment = document.createDocumentFragment();
+  visibleTransactions.forEach((transaction) => {
+    const item = document.createElement("li");
+    item.className = "transaction-item uncategorized-item";
+    item.innerHTML = `
+      <div class="transaction-main">
+        <div class="transaction-title"></div>
+        <div class="transaction-meta"></div>
+        <div class="transaction-date"></div>
+        <label class="category-picker quick-category-picker">
+          <span>Apply category</span>
+          <select></select>
+        </label>
+      </div>
+      <div class="transaction-amount expense"></div>
+    `;
+
+    item.querySelector(".transaction-title").textContent = getTransactionTitle(transaction);
+    item.querySelector(".transaction-meta").textContent = [getTransactionAccountName(transaction), transaction.description].filter(Boolean).join(" - ");
+    item.querySelector(".transaction-date").textContent = formatTransactionDateLabel(transaction);
+    item.querySelector(".transaction-amount").textContent = CURRENCY.format(transaction.amount);
+    setupCategorySelect(item.querySelector("select"), transaction);
+    fragment.append(item);
+  });
+
+  elements.uncategorizedList.append(fragment);
+  if (hiddenCount > 0) {
+    const item = document.createElement("li");
+    item.className = "list-note";
+    item.textContent = `Showing first ${INITIAL_RENDER_LIMIT}. Use search or filters to narrow ${hiddenCount} more.`;
+    elements.uncategorizedList.append(item);
+  }
+}
+
+function isUncategorizedExpense(transaction) {
+  const category = normalizeCategoryName(transaction.category);
+  return transaction.amount < 0 && (!category || category === "uncategorized" || category === "un categorized");
+}
+
+function normalizeCategoryName(category) {
+  return String(category || "").trim().toLowerCase();
 }
 
 function renderTransactions(transactions) {

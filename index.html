@@ -57,6 +57,7 @@
         <button class="view-tab" type="button" data-view="trends">Trends</button>
         <button class="view-tab" type="button" data-view="accounts">Accounts</button>
         <button class="view-tab" type="button" data-view="categories">Categories</button>
+        <button class="view-tab" type="button" data-view="uncategorized">Uncategorized</button>
         <button class="view-tab" type="button" data-view="transactions">Transactions</button>
       </nav>
 
@@ -229,6 +230,20 @@
         <div class="empty-state hidden" id="emptyState">
           <h2>No transactions found</h2>
           <p>Try another search, or replace expenses.csv with a fresh export.</p>
+        </div>
+      </section>
+
+      <section class="transaction-section view-section hidden" id="uncategorizedView" aria-label="Uncategorized expenses">
+        <div class="section-heading">
+          <div>
+            <h2 id="uncategorizedCount">0 uncategorized expenses</h2>
+            <p class="muted-label" id="uncategorizedTotal">€0.00 waiting for a home</p>
+          </div>
+        </div>
+        <ol class="transaction-list" id="uncategorizedList"></ol>
+        <div class="empty-state hidden" id="uncategorizedEmptyState">
+          <h2>All clear</h2>
+          <p>No uncategorized expenses match the current filters.</p>
         </div>
       </section>
     </main>
