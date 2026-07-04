@@ -1302,8 +1302,9 @@ function render() {
   updateSalaryPeriodControls();
   const transactions = getFilteredTransactions({ includeSearch: false });
   const searchedTransactions = getFilteredTransactions({ includeSearch: state.selectedView === "transactions" });
-  renderSummary(transactions);
-  renderOverview(transactions);
+  const dashboardTransactions = getDashboardMoneyTransactions(transactions);
+  renderSummary(dashboardTransactions);
+  renderOverview(dashboardTransactions);
   populateTrendCategories();
   renderTrends();
   renderLatestAccounts();
@@ -1392,6 +1393,31 @@ function renderSummary(transactions) {
   elements.spentTotal.textContent = CURRENCY.format(spent);
   elements.incomeTotal.textContent = CURRENCY.format(income);
   elements.netTotal.textContent = CURRENCY.format(net);
+}
+
+function getDashboardMoneyTransactions(transactions) {
+  return transactions.filter((transaction) => isDashboardExpense(transaction) || isDashboardIncome(transaction));
+}
+
+function isDashboardExpense(transaction) {
+  if (transaction.amount >= 0) {
+    return false;
+  }
+
+  const meta = getCategoryMeta(transaction.category);
+  const category = normalizeCategoryName(transaction.category);
+  const type = getTransactionType(transaction);
+  if (category === "transfers" || type === "Income" || type === "Invest") {
+    return false;
+  }
+  if (meta.actualExpense === "No") {
+    return false;
+  }
+  return true;
+}
+
+function isDashboardIncome(transaction) {
+  return transaction.amount > 0 && getTransactionType(transaction) === "Income";
 }
 
 function renderOverview(transactions = getFilteredTransactions({ includeSearch: true })) {
