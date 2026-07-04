@@ -214,7 +214,7 @@ h2 {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 10px;
-  margin: 22px 0;
+  margin: 18px 0;
 }
 
 .summary-card {
@@ -256,7 +256,7 @@ h2 {
 .controls {
   display: grid;
   gap: 12px;
-  margin-bottom: 20px;
+  margin-bottom: 12px;
 }
 
 .search-field,
@@ -289,7 +289,7 @@ h2 {
 
 .segmented-control {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   padding: 4px;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -380,7 +380,7 @@ h2 {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
-  margin: -6px 0 18px;
+  margin: 0 0 18px;
 }
 
 .analysis-filters label,
@@ -391,6 +391,11 @@ h2 {
   color: var(--muted);
   font-size: 0.78rem;
   font-weight: 800;
+}
+
+.analysis-filters label.hidden,
+.search-field.hidden {
+  display: none;
 }
 
 .analysis-filters select,

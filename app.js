@@ -61,7 +61,7 @@ const state = {
   selectedView: "overview",
   categoryMode: "all",
   trendCategory: "",
-  period: "all",
+  period: "salary",
   salaryMonthOffset: 0,
   search: "",
   authenticated: false,
@@ -176,6 +176,7 @@ const elements = {
   salaryPeriodLabel: document.querySelector("#salaryPeriodLabel"),
   salaryPrevButton: document.querySelector("#salaryPrevButton"),
   salaryNextButton: document.querySelector("#salaryNextButton"),
+  customDateFilters: document.querySelectorAll(".custom-date-filter"),
   periodButtons: document.querySelectorAll("[data-period]"),
   viewTabs: document.querySelectorAll("[data-view]"),
 };
@@ -219,6 +220,12 @@ elements.periodButtons.forEach((button) => {
       state.selectedMonth = "all";
       elements.yearFilter.value = "all";
       elements.monthFilter.value = "all";
+    } else if (state.period === "custom" && (state.selectedYear === "all" || state.selectedMonth === "all")) {
+      const now = new Date();
+      state.selectedYear = String(now.getFullYear());
+      state.selectedMonth = String(now.getMonth() + 1);
+      elements.yearFilter.value = state.selectedYear;
+      elements.monthFilter.value = state.selectedMonth;
     }
     elements.periodButtons.forEach((item) => item.classList.toggle("active", item === button));
     render();
@@ -1162,11 +1169,6 @@ function renderActiveView() {
 }
 
 function getFilteredTransactions({ includeSearch }) {
-  const now = new Date();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const startOfWeek = new Date(now);
-  startOfWeek.setDate(now.getDate() - 6);
-  startOfWeek.setHours(0, 0, 0, 0);
   const salaryPeriod = getSalaryPeriod(state.salaryMonthOffset);
 
   return state.allTransactions.filter((transaction) => {
@@ -1184,13 +1186,12 @@ function getFilteredTransactions({ includeSearch }) {
     const periodDate = getTransactionPeriodDate(transaction);
     const matchesSearch = !includeSearch || !state.search || searchable.includes(state.search);
     const matchesPeriod =
-      state.period === "all" ||
-      (state.period === "month" && periodDate >= startOfMonth) ||
-      (state.period === "week" && periodDate >= startOfWeek) ||
-      (state.period === "salary" && periodDate >= salaryPeriod.start && periodDate < salaryPeriod.endExclusive);
+      state.period !== "salary" || (periodDate >= salaryPeriod.start && periodDate < salaryPeriod.endExclusive);
     const matchesAccount = state.selectedAccount === "all" || transaction.account === state.selectedAccount;
-    const matchesYear = state.selectedYear === "all" || periodDate?.getFullYear() === Number(state.selectedYear);
-    const matchesMonth = state.selectedMonth === "all" || periodDate?.getMonth() + 1 === Number(state.selectedMonth);
+    const matchesYear =
+      state.period !== "custom" || state.selectedYear === "all" || periodDate?.getFullYear() === Number(state.selectedYear);
+    const matchesMonth =
+      state.period !== "custom" || state.selectedMonth === "all" || periodDate?.getMonth() + 1 === Number(state.selectedMonth);
     const type = getTransactionType(transaction);
     const matchesType = state.selectedType === "all" || type === state.selectedType;
 
@@ -1210,6 +1211,9 @@ function getSalaryPeriod(offset = 0) {
 function updateSalaryPeriodControls() {
   const isSalaryPeriod = state.period === "salary";
   elements.salaryPeriodNav.classList.toggle("hidden", !isSalaryPeriod);
+  elements.customDateFilters.forEach((element) => {
+    element.classList.toggle("hidden", state.period !== "custom");
+  });
   if (!isSalaryPeriod) {
     return;
   }

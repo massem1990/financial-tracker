@@ -37,6 +37,50 @@
         <button class="primary-button fetch-button" id="fetchTransactionsButton" type="button">Fetch</button>
       </header>
 
+      <section class="controls" aria-label="Transaction filters">
+        <label class="search-field hidden" id="transactionSearchField">
+          <span>Search</span>
+          <input id="searchInput" type="search" placeholder="Merchant, category, account..." autocomplete="off" />
+        </label>
+        <div class="segmented-control" role="group" aria-label="Time period">
+          <button class="segment active" type="button" data-period="salary">Salary month</button>
+          <button class="segment" type="button" data-period="custom">Custom</button>
+        </div>
+        <div class="salary-period-nav" id="salaryPeriodNav" aria-label="Salary month navigation">
+          <button class="icon-button" id="salaryPrevButton" type="button" aria-label="Previous salary month">Prev</button>
+          <div>
+            <span>Salary month</span>
+            <strong id="salaryPeriodLabel">Current salary month</strong>
+          </div>
+          <button class="icon-button" id="salaryNextButton" type="button" aria-label="Next salary month">Next</button>
+        </div>
+      </section>
+
+      <section class="analysis-filters" aria-label="Dashboard filters">
+        <label>
+          <span>Account</span>
+          <select id="accountFilter"></select>
+        </label>
+        <label>
+          <span>Type</span>
+          <select id="typeFilter">
+            <option value="all">All</option>
+            <option value="Need">Need</option>
+            <option value="Want">Want</option>
+            <option value="Invest">Invest</option>
+            <option value="Income">Income</option>
+          </select>
+        </label>
+        <label class="custom-date-filter hidden">
+          <span>Month</span>
+          <select id="monthFilter"></select>
+        </label>
+        <label class="custom-date-filter hidden">
+          <span>Year</span>
+          <select id="yearFilter"></select>
+        </label>
+      </section>
+
       <section class="summary-grid" aria-label="Summary">
         <article class="summary-card">
           <span class="summary-label">Spent</span>
@@ -60,52 +104,6 @@
         <button class="view-tab" type="button" data-view="uncategorized">Uncategorized</button>
         <button class="view-tab" type="button" data-view="transactions">Transactions</button>
       </nav>
-
-      <section class="controls" aria-label="Transaction filters">
-        <label class="search-field hidden" id="transactionSearchField">
-          <span>Search</span>
-          <input id="searchInput" type="search" placeholder="Merchant, category, account..." autocomplete="off" />
-        </label>
-        <div class="segmented-control" role="group" aria-label="Time period">
-          <button class="segment active" type="button" data-period="all">All</button>
-          <button class="segment" type="button" data-period="month">Month</button>
-          <button class="segment" type="button" data-period="salary">Salary</button>
-          <button class="segment" type="button" data-period="week">Week</button>
-        </div>
-        <div class="salary-period-nav hidden" id="salaryPeriodNav" aria-label="Salary month navigation">
-          <button class="icon-button" id="salaryPrevButton" type="button" aria-label="Previous salary month">Prev</button>
-          <div>
-            <span>Salary month</span>
-            <strong id="salaryPeriodLabel">Current salary month</strong>
-          </div>
-          <button class="icon-button" id="salaryNextButton" type="button" aria-label="Next salary month">Next</button>
-        </div>
-      </section>
-
-      <section class="analysis-filters" aria-label="Dashboard filters">
-        <label>
-          <span>Account</span>
-          <select id="accountFilter"></select>
-        </label>
-        <label>
-          <span>Year</span>
-          <select id="yearFilter"></select>
-        </label>
-        <label>
-          <span>Month</span>
-          <select id="monthFilter"></select>
-        </label>
-        <label>
-          <span>Type</span>
-          <select id="typeFilter">
-            <option value="all">All</option>
-            <option value="Need">Need</option>
-            <option value="Want">Want</option>
-            <option value="Invest">Invest</option>
-            <option value="Income">Income</option>
-          </select>
-        </label>
-      </section>
 
       <section class="status-panel hidden" id="statusPanel" role="status"></section>
 
