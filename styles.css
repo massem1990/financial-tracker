@@ -1267,13 +1267,51 @@ h2 {
 
 .rules-list {
   display: grid;
-  gap: 8px;
+  gap: 12px;
   max-height: 420px;
   margin: 0;
   padding: 0;
   overflow: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
+  list-style: none;
+}
+
+.rule-group {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(16, 24, 22, 0.72);
+}
+
+.rule-group-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.rule-group-heading strong {
+  color: var(--ink);
+  font-size: 0.95rem;
+  font-weight: 900;
+  overflow-wrap: anywhere;
+}
+
+.rule-group-heading span {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.rule-group-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
   list-style: none;
 }
 
@@ -1285,7 +1323,7 @@ h2 {
   padding: 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: var(--surface-strong);
+  background: var(--surface);
 }
 
 .rule-list-main {

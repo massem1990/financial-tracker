@@ -2871,32 +2871,73 @@ function renderRulesList() {
   }
 
   const fragment = document.createDocumentFragment();
-  rows.slice(0, 120).forEach((row) => {
-    const item = document.createElement("li");
-    item.className = "rule-list-item";
+  const visibleRows = rows.slice(0, 160);
+  getRuleGroups(visibleRows).forEach((group) => {
+    const groupItem = document.createElement("li");
+    groupItem.className = "rule-group";
 
-    const main = document.createElement("div");
-    main.className = "rule-list-main";
+    const header = document.createElement("div");
+    header.className = "rule-group-heading";
     const title = document.createElement("strong");
-    title.textContent = row.match;
-    const meta = document.createElement("small");
-    meta.textContent = [row.typeLabel, row.amount ? `amount ${row.amount}` : "", `→ ${row.value}`].filter(Boolean).join(" - ");
-    main.append(title, meta);
+    title.textContent = group.value;
+    const count = document.createElement("span");
+    count.textContent = `${group.rows.length} rule${group.rows.length === 1 ? "" : "s"}`;
+    header.append(title, count);
 
-    const actions = document.createElement("div");
-    actions.className = "rule-list-actions";
-    actions.append(createRuleActionButton("Edit", "edit", row), createRuleActionButton("Delete", "delete", row, true));
-    item.append(main, actions);
-    fragment.append(item);
+    const list = document.createElement("ol");
+    list.className = "rule-group-list";
+    group.rows.forEach((row) => {
+      list.append(createRuleListItem(row));
+    });
+
+    groupItem.append(header, list);
+    fragment.append(groupItem);
   });
 
   elements.rulesList.append(fragment);
-  if (rows.length > 120) {
+  if (rows.length > visibleRows.length) {
     const note = document.createElement("li");
     note.className = "list-note";
-    note.textContent = `Showing first 120. Search to narrow ${rows.length - 120} more.`;
+    note.textContent = `Showing first ${visibleRows.length}. Search to narrow ${rows.length - visibleRows.length} more.`;
     elements.rulesList.append(note);
   }
+}
+
+function getRuleGroups(rows) {
+  const groups = new Map();
+  rows.forEach((row) => {
+    const value = row.value || "No target";
+    if (!groups.has(value)) {
+      groups.set(value, []);
+    }
+    groups.get(value).push(row);
+  });
+
+  return [...groups.entries()]
+    .map(([value, groupRows]) => ({
+      value,
+      rows: groupRows.sort((a, b) => getRuleTypePriority(a.type) - getRuleTypePriority(b.type) || a.match.localeCompare(b.match)),
+    }))
+    .sort((a, b) => a.value.localeCompare(b.value));
+}
+
+function createRuleListItem(row) {
+  const item = document.createElement("li");
+  item.className = "rule-list-item";
+
+  const main = document.createElement("div");
+  main.className = "rule-list-main";
+  const title = document.createElement("strong");
+  title.textContent = row.match;
+  const meta = document.createElement("small");
+  meta.textContent = [row.typeLabel, row.amount ? `amount ${row.amount}` : ""].filter(Boolean).join(" - ");
+  main.append(title, meta);
+
+  const actions = document.createElement("div");
+  actions.className = "rule-list-actions";
+  actions.append(createRuleActionButton("Edit", "edit", row), createRuleActionButton("Delete", "delete", row, true));
+  item.append(main, actions);
+  return item;
 }
 
 function createRuleActionButton(label, action, row, danger = false) {
