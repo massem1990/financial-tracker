@@ -105,6 +105,7 @@
         <button class="view-tab" type="button" data-view="categories">Categories</button>
         <button class="view-tab" type="button" data-view="uncategorized">Uncategorized</button>
         <button class="view-tab" type="button" data-view="transactions">Transactions</button>
+        <button class="view-tab" type="button" data-view="settings">Settings</button>
       </nav>
 
       <section class="status-panel hidden" id="statusPanel" role="status"></section>
@@ -253,6 +254,91 @@
           <p>No uncategorized expenses match the current filters.</p>
         </div>
       </section>
+
+      <section class="view-section hidden" id="settingsView" aria-label="Settings">
+        <div class="settings-form settings-panel">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">App settings</p>
+              <h2>Settings</h2>
+            </div>
+          </div>
+
+          <dl class="settings-list">
+            <div>
+              <dt>Source</dt>
+              <dd id="csvMode">expenses.csv</dd>
+            </div>
+            <div>
+              <dt>Category edits</dt>
+              <dd id="categoryEditCount">0</dd>
+            </div>
+          </dl>
+
+          <label class="file-picker">
+            <span>Load another CSV on this device</span>
+            <input id="csvFileInput" type="file" accept=".csv,text/csv" />
+          </label>
+
+          <div class="dialog-actions">
+            <button class="secondary-button" id="clearUploadButton" type="button">Clear upload</button>
+            <button class="secondary-button" id="resetCategoriesButton" type="button">Reset categories</button>
+            <button class="primary-button" id="csvRefreshButton" type="button">Refresh data</button>
+          </div>
+
+          <section class="rules-settings" aria-label="Categorisation rules">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Automation</p>
+                <h3>Categorisation rules</h3>
+                <p class="helper-text">Rules apply during GoCardless sync. Use them to auto-place matching transactions into categories.</p>
+              </div>
+              <button class="secondary-button" id="reloadRulesButton" type="button">Reload</button>
+            </div>
+
+            <label class="auth-field">
+              <span>Search rules</span>
+              <input id="ruleSearchInput" type="search" placeholder="albert heijn, salary, paypal..." autocomplete="off" />
+            </label>
+
+            <div class="rule-editor-card">
+              <input id="ruleOriginalType" type="hidden" />
+              <input id="ruleOriginalMatch" type="hidden" />
+              <input id="ruleOriginalAmount" type="hidden" />
+              <label class="auth-field">
+                <span>Rule</span>
+                <select id="ruleType">
+                  <option value="keyword">Description contains → category</option>
+                  <option value="keywordAmountCategory">Description contains + amount → category</option>
+                  <option value="shortDescription">Description contains → short description</option>
+                  <option value="transferAccount">IBAN/account → transfer name</option>
+                  <option value="travelCategory">Description contains → travel tag</option>
+                  <option value="amountOverride">Legacy: category + amount → short description</option>
+                </select>
+              </label>
+              <label class="auth-field">
+                <span>Description contains</span>
+                <input id="ruleMatch" type="text" placeholder="Albert Heijn, salary, paypal..." />
+              </label>
+              <label class="auth-field rule-amount-field">
+                <span>Amount equals</span>
+                <input id="ruleAmount" type="text" inputmode="decimal" placeholder="-22.99" />
+              </label>
+              <label class="auth-field">
+                <span>Set category to</span>
+                <input id="ruleValue" type="text" placeholder="Food & Household Supplies" />
+              </label>
+              <div class="dialog-actions">
+                <button class="secondary-button" id="clearRuleFormButton" type="button">Clear</button>
+                <button class="primary-button" id="saveRuleButton" type="button">Save rule</button>
+              </div>
+            </div>
+
+            <div class="rules-summary" id="rulesSummary">No rules loaded yet.</div>
+            <ol class="rules-list" id="rulesList"></ol>
+          </section>
+        </div>
+      </section>
     </main>
 
     <section class="loading-overlay hidden" id="loadingOverlay" aria-live="polite" aria-busy="true">
@@ -374,95 +460,6 @@
           </select>
         </label>
         <button class="primary-button" id="saveTransactionCategoryButton" type="button">Save details</button>
-      </form>
-    </dialog>
-
-    <dialog class="settings-dialog" id="settingsDialog">
-      <form method="dialog" class="settings-form">
-        <div class="dialog-heading">
-          <div>
-            <p class="eyebrow">App settings</p>
-            <h2>Settings</h2>
-          </div>
-          <button class="icon-button" type="submit" aria-label="Close settings">Close</button>
-        </div>
-
-        <dl class="settings-list">
-          <div>
-            <dt>Source</dt>
-            <dd id="csvMode">expenses.csv</dd>
-          </div>
-          <div>
-            <dt>Category edits</dt>
-            <dd id="categoryEditCount">0</dd>
-          </div>
-        </dl>
-
-        <label class="file-picker">
-          <span>Load another CSV on this device</span>
-          <input id="csvFileInput" type="file" accept=".csv,text/csv" />
-        </label>
-
-        <p class="helper-text">
-          Data tools are here, and categorisation rules are just below this section.
-        </p>
-
-        <div class="dialog-actions">
-          <button class="secondary-button" id="clearUploadButton" type="button">Clear upload</button>
-          <button class="secondary-button" id="resetCategoriesButton" type="button">Reset categories</button>
-          <button class="primary-button" id="csvRefreshButton" type="button">Refresh data</button>
-        </div>
-
-        <section class="rules-settings" aria-label="Categorisation rules">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">Automation</p>
-              <h3>Categorisation rules</h3>
-              <p class="helper-text">Rules apply during GoCardless sync. Newer matching rules can change future uncategorized transactions.</p>
-            </div>
-            <button class="secondary-button" id="reloadRulesButton" type="button">Reload</button>
-          </div>
-
-          <label class="auth-field">
-            <span>Search rules</span>
-            <input id="ruleSearchInput" type="search" placeholder="albert heijn, salary, paypal..." autocomplete="off" />
-          </label>
-
-          <div class="rule-editor-card">
-            <input id="ruleOriginalType" type="hidden" />
-            <input id="ruleOriginalMatch" type="hidden" />
-            <input id="ruleOriginalAmount" type="hidden" />
-            <label class="auth-field">
-              <span>Rule type</span>
-              <select id="ruleType">
-                <option value="keyword">Keyword → category</option>
-                <option value="shortDescription">Keyword → short description</option>
-                <option value="transferAccount">IBAN/account → transfer name</option>
-                <option value="travelCategory">Keyword → travel tag</option>
-                <option value="amountOverride">Category + amount → short description</option>
-              </select>
-            </label>
-            <label class="auth-field">
-              <span>Match text / category</span>
-              <input id="ruleMatch" type="text" placeholder="paypal, salary, NL04ABNA..." />
-            </label>
-            <label class="auth-field rule-amount-field">
-              <span>Amount override</span>
-              <input id="ruleAmount" type="text" inputmode="decimal" placeholder="-22.99" />
-            </label>
-            <label class="auth-field">
-              <span>Result</span>
-              <input id="ruleValue" type="text" placeholder="Food & Household Supplies" />
-            </label>
-            <div class="dialog-actions">
-              <button class="secondary-button" id="clearRuleFormButton" type="button">Clear</button>
-              <button class="primary-button" id="saveRuleButton" type="button">Save rule</button>
-            </div>
-          </div>
-
-          <div class="rules-summary" id="rulesSummary">No rules loaded yet.</div>
-          <ol class="rules-list" id="rulesList"></ol>
-        </section>
       </form>
     </dialog>
 

@@ -142,6 +142,7 @@ const elements = {
   categoriesView: document.querySelector("#categoriesView"),
   uncategorizedView: document.querySelector("#uncategorizedView"),
   transactionsView: document.querySelector("#transactionsView"),
+  settingsView: document.querySelector("#settingsView"),
   fetchTransactionsButton: document.querySelector("#fetchTransactionsButton"),
   latestAccountsList: document.querySelector("#latestAccountsList"),
   latestAccountsScope: document.querySelector("#latestAccountsScope"),
@@ -248,6 +249,10 @@ elements.viewTabs.forEach((button) => {
     state.selectedView = button.dataset.view;
     elements.viewTabs.forEach((item) => item.classList.toggle("active", item === button));
     render();
+    if (state.selectedView === "settings") {
+      updateSettings();
+      loadCategorizationRules();
+    }
   });
 });
 
@@ -1414,6 +1419,7 @@ function renderActiveView() {
   elements.categoriesView.classList.toggle("hidden", state.selectedView !== "categories");
   elements.uncategorizedView.classList.toggle("hidden", state.selectedView !== "uncategorized");
   elements.transactionsView.classList.toggle("hidden", state.selectedView !== "transactions");
+  elements.settingsView.classList.toggle("hidden", state.selectedView !== "settings");
 }
 
 function getFilteredTransactions({ includeSearch }) {
@@ -2806,6 +2812,7 @@ async function loadCategorizationRules({ force = false } = {}) {
 function normalizeRules(rules = {}) {
   return {
     keywords: normalizeRuleMap(rules.keywords, true),
+    keywordAmountCategories: normalizeNestedRuleMap(rules.keywordAmountCategories, true),
     shortDescriptions: normalizeRuleMap(rules.shortDescriptions, true),
     transferAccounts: normalizeRuleMap(rules.transferAccounts, false),
     travelCategories: normalizeRuleMap(rules.travelCategories, false),
@@ -2829,17 +2836,21 @@ function normalizeRuleMap(value, lowerKeys) {
 }
 
 function normalizeAmountOverrides(value) {
+  return normalizeNestedRuleMap(value, false);
+}
+
+function normalizeNestedRuleMap(value, lowerOuterKeys) {
   if (!value || typeof value !== "object") {
     return {};
   }
-  return Object.entries(value).reduce((rules, [category, overrides]) => {
-    const cleanCategory = String(category || "").trim();
-    if (!cleanCategory || !overrides || typeof overrides !== "object") {
+  return Object.entries(value).reduce((rules, [match, overrides]) => {
+    const cleanMatch = String(match || "").trim();
+    if (!cleanMatch || !overrides || typeof overrides !== "object") {
       return rules;
     }
     const cleaned = normalizeRuleMap(overrides, false);
     if (Object.keys(cleaned).length) {
-      rules[cleanCategory] = cleaned;
+      rules[lowerOuterKeys ? cleanMatch.toLowerCase() : cleanMatch] = cleaned;
     }
     return rules;
   }, {});
@@ -2903,7 +2914,8 @@ function createRuleActionButton(label, action, row, danger = false) {
 function getRuleRows() {
   const rules = state.categorizationRules || normalizeRules();
   const rows = [
-    ...Object.entries(rules.keywords).map(([match, value]) => ({ type: "keyword", typeLabel: "Keyword → category", match, value })),
+    ...Object.entries(rules.keywords).map(([match, value]) => ({ type: "keyword", typeLabel: "Description contains → category", match, value })),
+    ...getNestedRuleRows(rules.keywordAmountCategories, "keywordAmountCategory", "Description + amount → category"),
     ...Object.entries(rules.shortDescriptions).map(([match, value]) => ({
       type: "shortDescription",
       typeLabel: "Keyword → short description",
@@ -2928,7 +2940,7 @@ function getRuleRows() {
     Object.entries(overrides).forEach(([amount, value]) => {
       rows.push({
         type: "amountOverride",
-        typeLabel: "Category + amount → short description",
+        typeLabel: "Legacy category + amount → short description",
         match: category,
         amount,
         value,
@@ -2936,7 +2948,28 @@ function getRuleRows() {
     });
   });
 
-  return rows.sort((a, b) => a.typeLabel.localeCompare(b.typeLabel) || a.match.localeCompare(b.match));
+  return rows.sort((a, b) => getRuleTypePriority(a.type) - getRuleTypePriority(b.type) || a.match.localeCompare(b.match));
+}
+
+function getRuleTypePriority(type) {
+  return {
+    keywordAmountCategory: 1,
+    keyword: 2,
+    shortDescription: 3,
+    travelCategory: 4,
+    transferAccount: 5,
+    amountOverride: 6,
+  }[type] || 99;
+}
+
+function getNestedRuleRows(groupedRules, type, typeLabel) {
+  const rows = [];
+  Object.entries(groupedRules || {}).forEach(([match, overrides]) => {
+    Object.entries(overrides || {}).forEach(([amount, value]) => {
+      rows.push({ type, typeLabel, match, amount, value });
+    });
+  });
+  return rows;
 }
 
 function editRule(type, match, amount = "") {
@@ -2967,9 +3000,9 @@ async function saveRuleFromForm() {
   }
   const type = elements.ruleType.value;
   const match = elements.ruleMatch.value.trim();
-  const amount = elements.ruleAmount.value.trim();
+  const amount = normalizeRuleAmount(elements.ruleAmount.value.trim());
   const value = elements.ruleValue.value.trim();
-  if (!match || !value || (type === "amountOverride" && !amount)) {
+  if (!match || !value || (usesRuleAmount(type) && !amount)) {
     setStatus("Rule needs match text, result, and amount when using amount override.");
     return;
   }
@@ -2984,6 +3017,10 @@ function setRule(type, match, value, amount = "") {
   const rules = state.categorizationRules;
   if (type === "keyword") {
     rules.keywords[match.toLowerCase()] = value;
+  } else if (type === "keywordAmountCategory") {
+    const cleanMatch = match.toLowerCase();
+    rules.keywordAmountCategories[cleanMatch] = rules.keywordAmountCategories[cleanMatch] || {};
+    rules.keywordAmountCategories[cleanMatch][amount] = value;
   } else if (type === "shortDescription") {
     rules.shortDescriptions[match.toLowerCase()] = value;
   } else if (type === "transferAccount") {
@@ -3003,6 +3040,11 @@ function removeRule(type, match, amount = "") {
   const rules = state.categorizationRules;
   if (type === "keyword") {
     delete rules.keywords[match.toLowerCase()];
+  } else if (type === "keywordAmountCategory" && rules.keywordAmountCategories[match.toLowerCase()]) {
+    delete rules.keywordAmountCategories[match.toLowerCase()][amount];
+    if (!Object.keys(rules.keywordAmountCategories[match.toLowerCase()]).length) {
+      delete rules.keywordAmountCategories[match.toLowerCase()];
+    }
   } else if (type === "shortDescription") {
     delete rules.shortDescriptions[match.toLowerCase()];
   } else if (type === "transferAccount") {
@@ -3036,10 +3078,43 @@ function clearRuleForm() {
 }
 
 function updateRuleFormMode() {
-  const isAmountOverride = elements.ruleType.value === "amountOverride";
-  elements.ruleAmount.closest(".auth-field").classList.toggle("hidden", !isAmountOverride);
-  elements.ruleMatch.placeholder = isAmountOverride ? "PayPal (Temp)" : "paypal, salary, NL04ABNA...";
-  elements.ruleValue.placeholder = isAmountOverride ? "ChatGPT" : "Food & Household Supplies";
+  const type = elements.ruleType.value;
+  const usesAmount = usesRuleAmount(type);
+  elements.ruleAmount.closest(".auth-field").classList.toggle("hidden", !usesAmount);
+
+  const matchLabel = elements.ruleMatch.closest(".auth-field").querySelector("span");
+  const valueLabel = elements.ruleValue.closest(".auth-field").querySelector("span");
+  const amountLabel = elements.ruleAmount.closest(".auth-field").querySelector("span");
+
+  if (type === "amountOverride") {
+    matchLabel.textContent = "Current category";
+    amountLabel.textContent = "Amount equals";
+    valueLabel.textContent = "Set short description to";
+    elements.ruleMatch.placeholder = "PayPal (Temp)";
+    elements.ruleValue.placeholder = "ChatGPT";
+  } else {
+    matchLabel.textContent = "Description contains";
+    amountLabel.textContent = "Amount equals";
+    valueLabel.textContent = type === "shortDescription" ? "Set short description to" : type === "travelCategory" ? "Set travel tag to" : type === "transferAccount" ? "Set transfer name to" : "Set category to";
+    elements.ruleMatch.placeholder = type === "transferAccount" ? "NL04ABNA..." : "Albert Heijn, salary, paypal...";
+    elements.ruleValue.placeholder = type === "shortDescription" ? "ChatGPT" : type === "travelCategory" ? "Flight" : "Food & Household Supplies";
+  }
+}
+
+function usesRuleAmount(type) {
+  return type === "amountOverride" || type === "keywordAmountCategory";
+}
+
+function normalizeRuleAmount(value) {
+  const text = String(value || "").trim().replace(",", ".");
+  if (!text) {
+    return "";
+  }
+  const number = Number(text);
+  if (!Number.isFinite(number)) {
+    return text;
+  }
+  return String(Number(number.toFixed(8)));
 }
 
 function updateSettings() {

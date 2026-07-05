@@ -1,6 +1,7 @@
 import json
 import os
 from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from urllib.parse import unquote
 from uuid import uuid4
@@ -271,6 +272,7 @@ def sanitize_rules(rules):
     rules = rules if isinstance(rules, dict) else {}
     sanitized = {
         "keywords": clean_rule_map(rules.get("keywords")),
+        "keywordAmountCategories": {},
         "shortDescriptions": clean_rule_map(rules.get("shortDescriptions")),
         "transferAccounts": clean_rule_map(rules.get("transferAccounts"), uppercase_keys=True),
         "travelCategories": clean_rule_map(rules.get("travelCategories"), uppercase_keys=True),
@@ -283,14 +285,23 @@ def sanitize_rules(rules):
         category_name = clean_text(category)
         if not category_name or not isinstance(overrides, dict):
             continue
-        cleaned = clean_rule_map(overrides)
+        cleaned = clean_rule_map(overrides, normalize_amount_keys=True)
         if cleaned:
             sanitized["amountOverrides"][category_name] = cleaned
+
+    keyword_amount_categories = rules.get("keywordAmountCategories") if isinstance(rules.get("keywordAmountCategories"), dict) else {}
+    for keyword, overrides in keyword_amount_categories.items():
+        keyword_name = clean_text(keyword).lower()
+        if not keyword_name or not isinstance(overrides, dict):
+            continue
+        cleaned = clean_rule_map(overrides, normalize_amount_keys=True)
+        if cleaned:
+            sanitized["keywordAmountCategories"][keyword_name] = cleaned
 
     return sanitized
 
 
-def clean_rule_map(value, uppercase_keys=False):
+def clean_rule_map(value, uppercase_keys=False, normalize_amount_keys=False):
     if not isinstance(value, dict):
         return {}
     cleaned = {}
@@ -298,8 +309,24 @@ def clean_rule_map(value, uppercase_keys=False):
         clean_key = clean_text(key)
         clean_value = clean_text(item)
         if clean_key and clean_value:
+            if normalize_amount_keys:
+                clean_key = normalize_amount_key(clean_key)
             cleaned[clean_key.upper() if uppercase_keys else clean_key.lower()] = clean_value
     return dict(sorted(cleaned.items()))
+
+
+def normalize_amount_key(value):
+    text = clean_text(value).replace(",", ".")
+    if not text:
+        return ""
+    try:
+        number = Decimal(text)
+    except InvalidOperation:
+        return text
+    normalized = format(number.normalize(), "f")
+    if "." in normalized:
+        normalized = normalized.rstrip("0").rstrip(".")
+    return normalized
 
 
 def fetch_sync_status(sync_id):

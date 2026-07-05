@@ -1197,6 +1197,13 @@ h2 {
   -webkit-overflow-scrolling: touch;
 }
 
+.settings-panel {
+  max-height: none;
+  padding: 0;
+  background: transparent;
+  overflow: visible;
+}
+
 .helper-text {
   color: var(--muted);
   font-size: 0.9rem;
