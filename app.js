@@ -298,7 +298,7 @@ elements.trendCategorySelect.addEventListener("change", () => {
 
 elements.categoryMode.addEventListener("change", () => {
   state.categoryMode = elements.categoryMode.value;
-  renderOverview(getFilteredTransactions({ includeSearch: false }));
+  render();
 });
 
 elements.categoryCreateForm.addEventListener("submit", async (event) => {
@@ -1375,9 +1375,9 @@ function render() {
   updateSalaryPeriodControls();
   const transactions = getFilteredTransactions({ includeSearch: false });
   const searchedTransactions = getFilteredTransactions({ includeSearch: state.selectedView === "transactions" });
-  const dashboardTransactions = getDashboardMoneyTransactions(transactions);
-  renderSummary(dashboardTransactions);
-  renderOverview(dashboardTransactions);
+  const overviewTransactions = getOverviewTransactions(transactions);
+  renderSummary(overviewTransactions);
+  renderOverview(overviewTransactions);
   populateTrendCategories();
   renderTrends();
   renderLatestAccounts();
@@ -1486,6 +1486,10 @@ function renderSummary(transactions) {
   elements.spentTotal.textContent = CURRENCY.format(spent);
   elements.incomeTotal.textContent = CURRENCY.format(income);
   elements.netTotal.textContent = CURRENCY.format(net);
+}
+
+function getOverviewTransactions(transactions = getFilteredTransactions({ includeSearch: false })) {
+  return getDashboardMoneyTransactions(transactions);
 }
 
 function getDashboardMoneyTransactions(transactions) {
@@ -1626,7 +1630,7 @@ function getLensSummaryLabel(count) {
 function getCategorySummaries(transactions) {
   const summaries = new Map();
   transactions.forEach((transaction) => {
-    const category = transaction.category || "Uncategorized";
+    const category = getTransactionCategoryName(transaction);
     if (!summaries.has(category)) {
       const meta = getCategoryMeta(category);
       summaries.set(category, {
@@ -1648,6 +1652,10 @@ function getCategorySummaries(transactions) {
   });
 
   return [...summaries.values()].sort((a, b) => Math.abs(b.total) - Math.abs(a.total));
+}
+
+function getTransactionCategoryName(transaction) {
+  return transaction?.category || "Uncategorized";
 }
 
 function renderCategoryRanking(filteredSummaries, totalCategoryCount) {
@@ -1895,7 +1903,7 @@ function getMonthlyCategoryRows(category) {
 function openCategoryDialog(category) {
   state.openCategoryDialogName = category;
   const meta = getCategoryMeta(category);
-  const transactions = getFilteredTransactions({ includeSearch: false }).filter((transaction) => transaction.category === category);
+  const transactions = getOverviewTransactions().filter((transaction) => getTransactionCategoryName(transaction) === category);
   const total = transactions.reduce((sum, transaction) => sum + transaction.amount, 0);
   const budget = meta.monthlyBudget || 0;
 
