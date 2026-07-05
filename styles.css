@@ -1291,13 +1291,26 @@ h2 {
   align-items: baseline;
   justify-content: space-between;
   gap: 12px;
+  padding: 2px 2px 4px;
 }
 
 .rule-group-heading strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   color: var(--ink);
   font-size: 0.95rem;
   font-weight: 900;
   overflow-wrap: anywhere;
+}
+
+.rule-group-heading strong::before {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--brand);
+  content: "";
+  box-shadow: 0 0 0 4px rgba(34, 199, 173, 0.08);
 }
 
 .rule-group-heading span {

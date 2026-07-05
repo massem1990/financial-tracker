@@ -2930,7 +2930,7 @@ function createRuleListItem(row) {
   const title = document.createElement("strong");
   title.textContent = row.match;
   const meta = document.createElement("small");
-  meta.textContent = [row.typeLabel, row.amount ? `amount ${row.amount}` : ""].filter(Boolean).join(" - ");
+  meta.textContent = [row.typeLabel, row.amount ? `amount ${row.amount}` : "", `→ ${row.value}`].filter(Boolean).join(" - ");
   main.append(title, meta);
 
   const actions = document.createElement("div");
