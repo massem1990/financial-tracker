@@ -79,6 +79,7 @@ const state = {
   lastResumeRefreshAt: 0,
   editingTransactionId: "",
   categorySearchTransactionId: "",
+  categorySearchSelectedCategory: "",
   openCategoryDialogName: "",
   categoryOverrides: CONFIG.apiBaseUrl ? {} : loadCategoryOverrides(),
   categorizationRules: null,
@@ -160,8 +161,10 @@ const elements = {
   categorySearchDialog: document.querySelector("#categorySearchDialog"),
   categorySearchTitle: document.querySelector("#categorySearchTitle"),
   categorySearchInput: document.querySelector("#categorySearchInput"),
+  categorySearchShortDescription: document.querySelector("#categorySearchShortDescription"),
   categorySearchList: document.querySelector("#categorySearchList"),
   categorySearchCloseButton: document.querySelector("#categorySearchCloseButton"),
+  categorySearchSaveButton: document.querySelector("#categorySearchSaveButton"),
   transactionEditDialog: document.querySelector("#transactionEditDialog"),
   transactionEditTitle: document.querySelector("#transactionEditTitle"),
   transactionEditSummary: document.querySelector("#transactionEditSummary"),
@@ -330,22 +333,29 @@ elements.categorySearchInput.addEventListener("keydown", (event) => {
   }
 });
 
-elements.categorySearchList.addEventListener("click", async (event) => {
+elements.categorySearchList.addEventListener("click", (event) => {
   const button = event.target.closest("button[data-category-name]");
   if (!button) {
     return;
   }
 
-  await chooseCategoryFromSearch(button.dataset.categoryName);
+  state.categorySearchSelectedCategory = button.dataset.categoryName;
+  renderCategorySearchOptions();
 });
 
 elements.categorySearchCloseButton.addEventListener("click", () => {
   elements.categorySearchDialog.close();
 });
 
+elements.categorySearchSaveButton.addEventListener("click", async () => {
+  await saveCategorySearchSelection();
+});
+
 elements.categorySearchDialog.addEventListener("close", () => {
   state.categorySearchTransactionId = "";
+  state.categorySearchSelectedCategory = "";
   elements.categorySearchInput.value = "";
+  elements.categorySearchShortDescription.value = "";
 });
 
 if (elements.exportCategoriesButton) {
@@ -2464,16 +2474,18 @@ function openCategorySearch(transactionId) {
   }
 
   state.categorySearchTransactionId = transaction.id;
+  state.categorySearchSelectedCategory = transaction.category || "Uncategorized";
   elements.categorySearchTitle.textContent = getTransactionTitle(transaction);
   elements.categorySearchInput.value = "";
+  elements.categorySearchShortDescription.value = transaction.shortDescription || "";
   renderCategorySearchOptions();
   elements.categorySearchDialog.showModal();
-  window.setTimeout(() => elements.categorySearchInput.focus(), 60);
+  window.setTimeout(() => elements.categorySearchShortDescription.focus(), 60);
 }
 
 function renderCategorySearchOptions() {
   const transaction = state.allTransactions.find((item) => item.id === state.categorySearchTransactionId);
-  const currentCategory = transaction?.category || "Uncategorized";
+  const currentCategory = state.categorySearchSelectedCategory || transaction?.category || "Uncategorized";
   const query = elements.categorySearchInput.value.trim().toLowerCase();
   const categories = getCategorySearchOptions(currentCategory).filter((category) => {
     const searchable = [category.name, category.bucket, category.type].filter(Boolean).join(" ").toLowerCase();
@@ -2510,6 +2522,7 @@ function renderCategorySearchOptions() {
     button.querySelector(".category-search-meta").textContent = [category.type, category.monthlyBudget ? CURRENCY.format(category.monthlyBudget) : ""]
       .filter(Boolean)
       .join(" - ");
+    button.classList.toggle("selected", category.name === currentCategory);
     button.querySelector(".category-search-check").textContent = category.name === currentCategory ? "✓" : "";
     fragment.append(button);
   });
@@ -2533,20 +2546,60 @@ function getCategorySearchOptions(currentCategory) {
   });
 }
 
-async function chooseCategoryFromSearch(nextCategory) {
+async function saveCategorySearchSelection() {
   const transaction = state.allTransactions.find((item) => item.id === state.categorySearchTransactionId);
   if (!transaction) {
     return;
   }
 
+  const nextCategory = state.categorySearchSelectedCategory || transaction.category || "Uncategorized";
+  const nextShortDescription = elements.categorySearchShortDescription.value.trim();
   const previousCategory = transaction.category;
+  const previousShortDescription = transaction.shortDescription;
   try {
-    await saveTransactionCategory(transaction, nextCategory);
+    await saveTransactionCategoryAndShortDescription(transaction, nextCategory, nextShortDescription);
     elements.categorySearchDialog.close();
   } catch (error) {
     transaction.category = previousCategory;
-    setStatus(`Could not save category change. ${friendlyErrorMessage(error)}`);
+    transaction.shortDescription = previousShortDescription;
+    setStatus(`Could not save transaction changes. ${friendlyErrorMessage(error)}`);
   }
+}
+
+async function saveTransactionCategoryAndShortDescription(transaction, nextCategory, nextShortDescription) {
+  transaction.category = nextCategory;
+  transaction.shortDescription = nextShortDescription;
+
+  if (CONFIG.apiBaseUrl) {
+    let payload = null;
+    try {
+      payload = await withAuroraWakeRetry(
+        () =>
+          apiRequest(`/transactions/${encodeURIComponent(transaction.id)}/details`, {
+            method: "PUT",
+            body: {
+              category: nextCategory,
+              originalCategory: transaction.originalCategory,
+              shortDescription: nextShortDescription,
+              overrideMonth: transaction.overrideMonth || "",
+              travelTag: transaction.travelTag || "",
+              accountFriendlyName: transaction.accountFriendlyName || "",
+            },
+          }),
+        {
+          title: "Saving after Aurora wakes up",
+          message: "Aurora is resuming. Your category and note are waiting together like a tiny paperwork duo.",
+        }
+      );
+    } finally {
+      setLoading(false);
+    }
+    await updateLocalCacheFromWrite(payload?.metadata);
+  } else {
+    await saveTransactionCategory(transaction, nextCategory);
+  }
+
+  render();
 }
 
 async function saveTransactionCategory(transaction, nextCategory) {

@@ -289,8 +289,15 @@
             <p class="eyebrow">Apply category</p>
             <h2 id="categorySearchTitle">Choose category</h2>
           </div>
-          <button class="icon-button category-search-close" id="categorySearchCloseButton" type="button" aria-label="Close category search">×</button>
+          <div class="dialog-heading-actions">
+            <button class="icon-button category-search-save" id="categorySearchSaveButton" type="button" aria-label="Save category">✓</button>
+            <button class="icon-button category-search-close" id="categorySearchCloseButton" type="button" aria-label="Close category search">×</button>
+          </div>
         </div>
+        <label class="auth-field category-short-description-field">
+          <span>Short description</span>
+          <input id="categorySearchShortDescription" type="text" placeholder="Optional note, merchant name, trip..." />
+        </label>
         <label class="search-field category-search-field">
           <span>Search categories</span>
           <input id="categorySearchInput" type="search" placeholder="Food, rent, travel..." autocomplete="off" />
@@ -378,8 +385,8 @@
       <form method="dialog" class="settings-form">
         <div class="dialog-heading">
           <div>
-            <p class="eyebrow">Data source</p>
-            <h2>Transactions</h2>
+            <p class="eyebrow">App settings</p>
+            <h2>Settings</h2>
           </div>
           <button class="icon-button" type="submit" aria-label="Close settings">Close</button>
         </div>
@@ -401,7 +408,7 @@
         </label>
 
         <p class="helper-text">
-          The app can read from your AWS database when configured, or from local CSV files while developing.
+          Data tools are here, and categorisation rules are just below this section.
         </p>
 
         <div class="dialog-actions">
