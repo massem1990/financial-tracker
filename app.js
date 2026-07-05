@@ -2927,23 +2927,46 @@ function createRuleListItem(row) {
 
   const main = document.createElement("div");
   main.className = "rule-list-main";
-  const title = document.createElement("strong");
-  title.textContent = row.match;
-  const meta = document.createElement("small");
-  meta.textContent = [row.typeLabel, row.amount ? `amount ${row.amount}` : "", `→ ${row.value}`].filter(Boolean).join(" - ");
-  main.append(title, meta);
+  const sentence = document.createElement("span");
+  sentence.className = "rule-sentence";
+  sentence.textContent = formatRuleSentence(row);
+  main.append(sentence);
 
   const actions = document.createElement("div");
   actions.className = "rule-list-actions";
-  actions.append(createRuleActionButton("Edit", "edit", row), createRuleActionButton("Delete", "delete", row, true));
+  actions.append(createRuleActionButton("✎", "edit", row, false, "Edit rule"), createRuleActionButton("×", "delete", row, true, "Delete rule"));
   item.append(main, actions);
   return item;
 }
 
-function createRuleActionButton(label, action, row, danger = false) {
+function formatRuleSentence(row) {
+  const quotedMatch = `“${row.match}”`;
+  if (row.type === "keywordAmountCategory") {
+    return `Description contains ${quotedMatch} and amount = ${row.amount} → ${row.value}`;
+  }
+  if (row.type === "keyword") {
+    return `Description contains ${quotedMatch} → ${row.value}`;
+  }
+  if (row.type === "shortDescription") {
+    return `Description contains ${quotedMatch} → short description “${row.value}”`;
+  }
+  if (row.type === "travelCategory") {
+    return `Description contains ${quotedMatch} → travel tag “${row.value}”`;
+  }
+  if (row.type === "transferAccount") {
+    return `IBAN/account contains ${quotedMatch} → ${row.value}`;
+  }
+  if (row.type === "amountOverride") {
+    return `Category is “${row.match}” and amount = ${row.amount} → short description “${row.value}”`;
+  }
+  return `${row.typeLabel}: ${row.match} → ${row.value}`;
+}
+
+function createRuleActionButton(label, action, row, danger = false, ariaLabel = label) {
   const button = document.createElement("button");
-  button.className = `secondary-button compact-button${danger ? " danger-button" : ""}`;
+  button.className = `rule-icon-button${danger ? " danger-button" : ""}`;
   button.type = "button";
+  button.setAttribute("aria-label", ariaLabel);
   button.dataset.ruleAction = action;
   button.dataset.ruleType = row.type;
   button.dataset.ruleMatch = row.match;
