@@ -764,6 +764,15 @@ function getTransactionAccountName(transaction) {
   return state.accountNames[transaction.account] || transaction.accountFriendlyName || getAccountName(transaction.account);
 }
 
+function getFriendlyAccountName(accountId) {
+  if (state.accountNames[accountId]) {
+    return state.accountNames[accountId];
+  }
+
+  const transaction = state.allTransactions.find((item) => item.account === accountId && item.accountFriendlyName);
+  return transaction?.accountFriendlyName || getAccountName(accountId);
+}
+
 async function loadTransactions(loadingCopy = {}) {
   setStatus("");
   state.loading = true;
@@ -1321,9 +1330,9 @@ function populateFilters() {
   const years = [...new Set(state.allTransactions.map((transaction) => transaction.date?.getFullYear()).filter(Boolean))]
     .sort((a, b) => b - a);
   const accounts = [...new Set(state.allTransactions.map((transaction) => transaction.account).filter(Boolean))]
-    .sort((a, b) => getAccountName(a).localeCompare(getAccountName(b)));
+    .sort((a, b) => getFriendlyAccountName(a).localeCompare(getFriendlyAccountName(b)));
 
-  syncOptions(elements.accountFilter, [["all", "All accounts"], ...accounts.map((account) => [account, getAccountName(account)])], state.selectedAccount);
+  syncOptions(elements.accountFilter, [["all", "All accounts"], ...accounts.map((account) => [account, getFriendlyAccountName(account)])], state.selectedAccount);
   syncOptions(elements.yearFilter, [["all", "All years"], ...years.map((year) => [String(year), String(year)])], state.selectedYear);
   syncOptions(
     elements.monthFilter,
