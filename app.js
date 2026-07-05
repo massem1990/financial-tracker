@@ -2942,16 +2942,16 @@ function createRuleListItem(row) {
 function formatRuleSentence(row) {
   const quotedMatch = `“${row.match}”`;
   if (row.type === "keywordAmountCategory") {
-    return `Description contains ${quotedMatch} and amount = ${row.amount} → ${row.value}`;
+    return `${quotedMatch} + ${row.amount} → ${row.value}`;
   }
   if (row.type === "keyword") {
-    return `Description contains ${quotedMatch} → ${row.value}`;
+    return `${quotedMatch} → ${row.value}`;
   }
   if (row.type === "shortDescription") {
-    return `Description contains ${quotedMatch} → short description “${row.value}”`;
+    return `${quotedMatch} → note “${row.value}”`;
   }
   if (row.type === "travelCategory") {
-    return `Description contains ${quotedMatch} → travel tag “${row.value}”`;
+    return `${quotedMatch} → travel “${row.value}”`;
   }
   if (row.type === "transferAccount") {
     return `IBAN/account contains ${quotedMatch} → ${row.value}`;
