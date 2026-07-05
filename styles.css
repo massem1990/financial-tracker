@@ -483,7 +483,7 @@ h2 {
 
 .pie-card {
   display: grid;
-  gap: 18px;
+  gap: 8px;
   padding: 16px;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -536,67 +536,16 @@ h2 {
   text-transform: uppercase;
 }
 
-.pie-legend {
-  display: grid;
-  gap: 6px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.pie-legend li:not(.empty-inline) {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: start;
-  gap: 10px;
-  min-width: 0;
-  padding: 11px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.pie-legend li:last-child {
-  border-bottom: 0;
+.pie-scope {
+  text-align: center;
 }
 
 .legend-dot {
+  flex: 0 0 auto;
   width: 12px;
   height: 12px;
-  margin-top: 5px;
   border-radius: 50%;
   box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.035);
-}
-
-.pie-legend-name {
-  color: var(--ink);
-  font-size: 0.94rem;
-  font-weight: 900;
-  line-height: 1.25;
-  overflow-wrap: anywhere;
-}
-
-.pie-legend-values {
-  grid-column: 2;
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  min-width: 0;
-  margin-top: -2px;
-}
-
-.pie-legend-values strong {
-  color: var(--ink);
-  font-size: 0.92rem;
-  font-weight: 900;
-  white-space: nowrap;
-}
-
-.pie-legend-values small {
-  color: var(--muted);
-  font-size: 0.86rem;
-  font-weight: 900;
-  text-align: right;
-  white-space: nowrap;
 }
 
 .budget-section {
@@ -819,7 +768,7 @@ h2 {
 
 .category-row-button {
   display: grid;
-  grid-template-columns: 34px minmax(0, 1fr) auto;
+  grid-template-columns: 34px minmax(0, 1fr) minmax(72px, auto);
   align-items: center;
   width: 100%;
   gap: 10px;
@@ -857,6 +806,13 @@ h2 {
   white-space: nowrap;
 }
 
+.category-row-title {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 8px;
+}
+
 .category-row-main small {
   overflow: hidden;
   color: var(--muted);
@@ -883,11 +839,32 @@ h2 {
   background: var(--danger);
 }
 
-.category-row-amount {
+.category-budget-note {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.category-row-values {
+  display: grid;
+  gap: 3px;
   align-self: start;
+  text-align: right;
+}
+
+.category-row-amount {
   color: var(--ink);
   font-weight: 900;
-  text-align: right;
+  white-space: nowrap;
+}
+
+.category-row-share {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 900;
   white-space: nowrap;
 }
 

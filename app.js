@@ -132,7 +132,6 @@ const elements = {
   categoryMode: document.querySelector("#categoryMode"),
   rankingScope: document.querySelector("#rankingScope"),
   expensePie: document.querySelector("#expensePie"),
-  pieLegend: document.querySelector("#pieLegend"),
   pieScope: document.querySelector("#pieScope"),
   trendCategorySelect: document.querySelector("#trendCategorySelect"),
   trendChart: document.querySelector("#trendChart"),
@@ -1531,8 +1530,9 @@ function renderOverview(transactions = getFilteredTransactions({ includeSearch: 
   setInsight(elements.investTotal, elements.investShare, invest, spent);
   setInsight(elements.savingsTotal, elements.savingsShare, savings, income);
   const summaries = getCategorySummaries(transactions);
-  renderExpensePie(summaries);
-  renderCategoryRanking(summaries);
+  const filteredSummaries = filterCategorySummaries(summaries);
+  renderExpensePie(filteredSummaries);
+  renderCategoryRanking(filteredSummaries, summaries.length);
 }
 
 function totalByType(transactions, type) {
@@ -1547,69 +1547,80 @@ function setInsight(totalElement, shareElement, value, denominator) {
 }
 
 function renderExpensePie(summaries) {
-  const colors = ["#22c7ad", "#f2b84b", "#b9a7ff", "#ff6b5f", "#55d98f", "#6ea8ff", "#f77fb3"];
-  const expenseRows = summaries
-    .map((summary) => ({
-      name: summary.name,
-      value: Math.abs(Math.min(summary.total, 0)),
-    }))
-    .filter((summary) => summary.value > 0)
-    .sort((a, b) => b.value - a.value);
-  const total = expenseRows.reduce((sum, row) => sum + row.value, 0);
+  const chartRows = getCategoryChartRows(summaries);
+  const total = chartRows.reduce((sum, row) => sum + row.value, 0);
 
-  elements.pieScope.textContent = `${expenseRows.length} expense categor${expenseRows.length === 1 ? "y" : "ies"}`;
-  elements.pieLegend.innerHTML = "";
+  elements.pieScope.textContent = getLensSummaryLabel(chartRows.length);
 
   if (!total) {
     elements.expensePie.style.background = "";
     elements.expensePie.innerHTML = `
       <div class="pie-center">
         <strong>${CURRENCY.format(0)}</strong>
-        <small>spent</small>
+        <small>${getLensCenterLabel()}</small>
       </div>
     `;
-    elements.pieLegend.innerHTML = '<li class="empty-inline">No expenses in this period.</li>';
     return;
   }
 
-  const topRows = expenseRows.slice(0, 6);
-  const otherValue = expenseRows.slice(6).reduce((sum, row) => sum + row.value, 0);
-  const chartRows = otherValue > 0 ? [...topRows, { name: "Other", value: otherValue }] : topRows;
   let cursor = 0;
   const segments = chartRows.map((row, index) => {
     const start = cursor;
     const end = cursor + (row.value / total) * 100;
     cursor = end;
-    return `${colors[index % colors.length]} ${start}% ${end}%`;
+    return `${getCategoryChartColor(index)} ${start}% ${end}%`;
   });
 
   elements.expensePie.style.background = `conic-gradient(${segments.join(", ")})`;
   elements.expensePie.innerHTML = `
     <div class="pie-center">
       <strong>${CURRENCY.format(total)}</strong>
-      <small>spent</small>
+      <small>${getLensCenterLabel()}</small>
     </div>
   `;
+}
 
-  const fragment = document.createDocumentFragment();
-  chartRows.forEach((row, index) => {
-    const item = document.createElement("li");
-    const percent = Math.round((row.value / total) * 100);
-    item.innerHTML = `
-      <span class="legend-dot"></span>
-      <span class="pie-legend-name"></span>
-      <span class="pie-legend-values">
-        <strong></strong>
-        <small></small>
-      </span>
-    `;
-    item.querySelector(".legend-dot").style.background = colors[index % colors.length];
-    item.querySelector(".pie-legend-name").textContent = row.name;
-    item.querySelector("strong").textContent = CURRENCY.format(row.value);
-    item.querySelector("small").textContent = `${percent}%`;
-    fragment.append(item);
-  });
-  elements.pieLegend.append(fragment);
+function getCategoryChartRows(summaries) {
+  return summaries
+    .map((summary) => ({
+      name: summary.name,
+      value: Math.abs(summary.total),
+    }))
+    .filter((summary) => summary.value > 0)
+    .sort((a, b) => b.value - a.value);
+}
+
+function getCategoryChartColor(index) {
+  const colors = [
+    "#22c7ad",
+    "#f2b84b",
+    "#b9a7ff",
+    "#ff6b5f",
+    "#55d98f",
+    "#6ea8ff",
+    "#f77fb3",
+    "#7de6d8",
+    "#d9f99d",
+    "#fb923c",
+    "#c084fc",
+    "#38bdf8",
+  ];
+  return colors[index % colors.length];
+}
+
+function getLensCenterLabel() {
+  if (state.categoryMode === "income") {
+    return "income";
+  }
+  if (state.categoryMode === "all") {
+    return "total";
+  }
+  return "spent";
+}
+
+function getLensSummaryLabel(count) {
+  const lensLabel = elements.categoryMode?.selectedOptions?.[0]?.textContent || "All";
+  return `${count} categor${count === 1 ? "y" : "ies"} in ${lensLabel.toLowerCase()}`;
 }
 
 function getCategorySummaries(transactions) {
@@ -1639,9 +1650,10 @@ function getCategorySummaries(transactions) {
   return [...summaries.values()].sort((a, b) => Math.abs(b.total) - Math.abs(a.total));
 }
 
-function renderCategoryRanking(summaries) {
-  const filteredSummaries = filterCategorySummaries(summaries);
-  elements.rankingScope.textContent = `${filteredSummaries.length} of ${summaries.length} categories`;
+function renderCategoryRanking(filteredSummaries, totalCategoryCount) {
+  const chartRows = getCategoryChartRows(filteredSummaries);
+  const chartTotal = chartRows.reduce((sum, row) => sum + row.value, 0);
+  elements.rankingScope.textContent = `${filteredSummaries.length} of ${totalCategoryCount} categories`;
   elements.categoryRanking.innerHTML = "";
 
   if (!filteredSummaries.length) {
@@ -1654,33 +1666,55 @@ function renderCategoryRanking(summaries) {
     const spent = Math.abs(Math.min(summary.total, 0));
     const budget = summary.budget;
     const ratio = budget > 0 ? spent / budget : 0;
+    const share = chartTotal > 0 ? Math.round((Math.abs(summary.total) / chartTotal) * 100) : 0;
+    const budgetDelta = budget - spent;
     const item = document.createElement("li");
     item.className = "category-row";
     item.innerHTML = `
       <button class="category-row-button" type="button">
         <span class="rank">${index + 1}</span>
         <span class="category-row-main">
-          <strong></strong>
+          <span class="category-row-title">
+            <span class="legend-dot"></span>
+            <strong></strong>
+          </span>
           <small></small>
           <span class="budget-bar"><span></span></span>
+          <span class="category-budget-note"></span>
         </span>
-        <span class="category-row-amount"></span>
+        <span class="category-row-values">
+          <strong class="category-row-amount"></strong>
+          <small class="category-row-share"></small>
+        </span>
       </button>
     `;
 
+    item.querySelector(".legend-dot").style.background = getCategoryChartColor(index);
     item.querySelector("strong").textContent = summary.name;
     const labels = [summary.bucket, summary.type, summary.frequency].filter(Boolean).join(" - ");
-    item.querySelector("small").textContent = budget
-      ? `${labels} - ${Math.round(ratio * 100)}% of ${CURRENCY.format(budget)}`
-      : `${labels || "Other"} - no budget`;
+    item.querySelector(".category-row-main > small").textContent = labels || "Other";
     item.querySelector(".budget-bar span").style.width = `${Math.min(100, Math.round(ratio * 100))}%`;
     item.querySelector(".budget-bar").classList.toggle("over-budget", ratio > 1);
+    item.querySelector(".category-budget-note").textContent = getBudgetProgressText(budget, spent, budgetDelta, ratio);
     item.querySelector(".category-row-amount").textContent = CURRENCY.format(summary.total);
+    item.querySelector(".category-row-share").textContent = `${share}%`;
     item.querySelector("button").addEventListener("click", () => openCategoryDialog(summary.name));
     fragment.append(item);
   });
 
   elements.categoryRanking.append(fragment);
+}
+
+function getBudgetProgressText(budget, spent, budgetDelta, ratio) {
+  if (!budget) {
+    return "No budget";
+  }
+
+  const percent = Math.round(ratio * 100);
+  if (budgetDelta >= 0) {
+    return `${percent}% used - ${CURRENCY.format(budgetDelta)} left of ${CURRENCY.format(budget)}`;
+  }
+  return `${percent}% used - ${CURRENCY.format(Math.abs(budgetDelta))} over ${CURRENCY.format(budget)}`;
 }
 
 function filterCategorySummaries(summaries) {

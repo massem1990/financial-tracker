@@ -144,20 +144,12 @@
           </article>
         </section>
 
-        <section class="chart-section" aria-label="Expense mix">
+        <section class="chart-section" aria-label="Category mix">
           <div class="section-heading">
-            <h2>Expense mix</h2>
-            <p class="muted-label" id="pieScope">Current filters</p>
-          </div>
-          <div class="pie-card">
-            <div class="expense-pie" id="expensePie" role="img" aria-label="Expense breakdown"></div>
-            <ol class="pie-legend" id="pieLegend"></ol>
-          </div>
-        </section>
-
-        <section class="budget-section" aria-label="Category ranking">
-          <div class="section-heading">
-            <h2>Category ranking</h2>
+            <div>
+              <h2>Category mix</h2>
+              <p class="muted-label" id="rankingScope">Current filters</p>
+            </div>
             <label class="compact-select">
               <span>Lens</span>
               <select id="categoryMode">
@@ -174,7 +166,10 @@
               </select>
             </label>
           </div>
-          <p class="muted-label" id="rankingScope">Current filters</p>
+          <div class="pie-card">
+            <div class="expense-pie" id="expensePie" role="img" aria-label="Expense breakdown"></div>
+            <p class="muted-label pie-scope" id="pieScope">Current filters</p>
+          </div>
           <ol class="category-ranking" id="categoryRanking"></ol>
         </section>
       </section>
