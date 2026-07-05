@@ -498,19 +498,31 @@ def bump_app_state(reason):
     bucket = os.getenv("APP_STATE_BUCKET")
     key = os.getenv("APP_STATE_KEY", "metadata/app-state.json")
     now = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-    metadata = {
-        "version": now,
-        "updatedAt": now,
-        "transactionsUpdatedAt": now,
-        "reason": reason,
-    }
+    metadata = {}
+
+    s3 = None
+    if bucket:
+        import boto3
+
+        s3 = boto3.client("s3")
+        metadata = read_app_state(s3, bucket, key)
+
+    metadata.update(
+        {
+            "version": now,
+            "updatedAt": now,
+            "transactionsUpdatedAt": now,
+            "reason": reason,
+        }
+    )
+
+    if reason == "gocardless-sync":
+        metadata["gocardlessSyncedAt"] = now
 
     if not bucket:
         return metadata
 
-    import boto3
-
-    boto3.client("s3").put_object(
+    s3.put_object(
         Bucket=bucket,
         Key=key,
         Body=json.dumps(metadata).encode("utf-8"),
@@ -518,6 +530,14 @@ def bump_app_state(reason):
         CacheControl="no-store, no-cache, max-age=0, must-revalidate",
     )
     return metadata
+
+
+def read_app_state(s3, bucket, key):
+    try:
+        body = s3.get_object(Bucket=bucket, Key=key)["Body"].read().decode("utf-8")
+        return json.loads(body) if body else {}
+    except Exception:
+        return {}
 
 
 def update_sync_status(sync_id, status, message, **extra):

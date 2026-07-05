@@ -181,6 +181,13 @@ button {
   text-transform: uppercase;
 }
 
+.last-sync-label {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
 h1,
 h2,
 h3,

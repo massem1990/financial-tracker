@@ -52,6 +52,14 @@ const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
   minute: "2-digit",
 });
 
+const syncDateTimeFormatter = new Intl.DateTimeFormat(undefined, {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
 const salaryPeriodFormatter = new Intl.DateTimeFormat(undefined, {
   month: "short",
   day: "numeric",
@@ -99,6 +107,7 @@ const elements = {
   spentTotal: document.querySelector("#spentTotal"),
   incomeTotal: document.querySelector("#incomeTotal"),
   netTotal: document.querySelector("#netTotal"),
+  lastSyncLabel: document.querySelector("#lastSyncLabel"),
   needsTotal: document.querySelector("#needsTotal"),
   needsShare: document.querySelector("#needsShare"),
   wantsTotal: document.querySelector("#wantsTotal"),
@@ -1363,6 +1372,7 @@ function populateTrendCategories() {
 
 function render() {
   renderActiveView();
+  renderLastSyncLabel();
   updateSalaryPeriodControls();
   const transactions = getFilteredTransactions({ includeSearch: false });
   const searchedTransactions = getFilteredTransactions({ includeSearch: state.selectedView === "transactions" });
@@ -1375,6 +1385,26 @@ function render() {
   renderCategoryEditor();
   renderUncategorizedTransactions(transactions);
   renderTransactions(searchedTransactions);
+}
+
+function renderLastSyncLabel() {
+  if (!elements.lastSyncLabel) {
+    return;
+  }
+
+  const syncedAt = state.serverState?.gocardlessSyncedAt || state.serverState?.lastGoCardlessSyncAt;
+  if (!syncedAt) {
+    elements.lastSyncLabel.textContent = "Last sync not yet";
+    return;
+  }
+
+  const date = new Date(syncedAt);
+  if (Number.isNaN(date.getTime())) {
+    elements.lastSyncLabel.textContent = "Last sync unknown";
+    return;
+  }
+
+  elements.lastSyncLabel.textContent = `Last sync ${syncDateTimeFormatter.format(date)}`;
 }
 
 function renderActiveView() {
