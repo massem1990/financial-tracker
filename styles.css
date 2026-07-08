@@ -1154,6 +1154,16 @@ h2 {
   outline: 3px solid rgba(34, 199, 173, 0.24);
 }
 
+.category-picker-button.uncategorized {
+  border-color: rgba(242, 184, 75, 0.62);
+  background: rgba(242, 184, 75, 0.12);
+  color: #f2c766;
+}
+
+.category-picker-button.uncategorized:focus-visible {
+  outline-color: rgba(242, 184, 75, 0.3);
+}
+
 .empty-state {
   margin-top: 18px;
   padding: 28px 18px;

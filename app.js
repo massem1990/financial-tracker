@@ -2587,7 +2587,13 @@ function renderTransactions(transactions) {
 
 function setupCategoryButton(button, transaction, fallbackLabel = "") {
   button.textContent = transaction.category || fallbackLabel || "Choose category";
+  button.classList.toggle("uncategorized", isUncategorizedCategory(transaction.category));
   button.addEventListener("click", () => openCategorySearch(transaction.id));
+}
+
+function isUncategorizedCategory(category) {
+  const normalized = normalizeCategoryName(category);
+  return !normalized || normalized === "uncategorized" || normalized === "un categorized";
 }
 
 function openCategorySearch(transactionId) {
