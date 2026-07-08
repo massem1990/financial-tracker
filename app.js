@@ -910,17 +910,24 @@ function renderSyncResult(sync, finalStepLabel = "Done") {
   const transactionCount = Number(sync.transactionCount || 0);
   const autoCategorized = Number(sync.categorization?.autoCategorized || 0);
   const upserted = Number(sync.database?.upserted || 0);
-  const dateRange = sync.dateFrom && sync.dateTo ? `${sync.dateFrom} to ${sync.dateTo}` : "latest safe window";
+  const newRows = Number(sync.database?.new || 0);
+  const refreshedRows = Number(sync.database?.refreshed || 0);
+  const accountSteps = (sync.accounts || []).map((account) => ({
+    label: formatSyncAccountStep(account),
+    state: "done",
+  }));
 
   renderSyncPanel({
     title: "Bank sync complete",
     badge: finalStepLabel,
-    summary: `${transactionCount} transaction${transactionCount === 1 ? "" : "s"} retrieved for ${dateRange}.`,
+    summary: `${transactionCount} transaction${transactionCount === 1 ? "" : "s"} retrieved across ${accountCount} account${accountCount === 1 ? "" : "s"}.`,
     steps: [
-      { label: `Fetched from ${accountCount} account${accountCount === 1 ? "" : "s"}`, state: "done" },
+      ...accountSteps,
       { label: `${transactionCount} transaction${transactionCount === 1 ? "" : "s"} retrieved`, state: "done" },
       { label: `${autoCategorized} transaction${autoCategorized === 1 ? "" : "s"} auto categorised`, state: "done" },
-      { label: `${upserted} database row${upserted === 1 ? "" : "s"} inserted or refreshed`, state: "done" },
+      { label: `${newRows} new database row${newRows === 1 ? "" : "s"}`, state: "done" },
+      { label: `${refreshedRows} existing row${refreshedRows === 1 ? "" : "s"} safely refreshed`, state: "done" },
+      { label: `${upserted} unique row${upserted === 1 ? "" : "s"} processed`, state: "done" },
       { label: finalStepLabel, state: finalStepLabel === "Done" ? "done" : "active" },
     ],
   });
@@ -955,16 +962,19 @@ function renderSyncStatus(status) {
   const accounts = status.account_count || status.accountCount || status.accounts?.length || "the";
   const categorised = Number(status.categorization?.autoCategorized || 0);
   const message = status.message || "Sync is running";
-  const steps = [
-    { label: `Fetching transactions from ${accounts} account${accounts === 1 ? "" : "s"}`, state: fetched ? "done" : "active" },
-    { label: `${fetched} transaction${fetched === 1 ? "" : "s"} retrieved so far`, state: fetched ? "done" : "active" },
-  ];
+  const accountSteps = (status.accounts || []).map((account) => ({
+    label: formatSyncAccountStep(account),
+    state: account.status === "complete" ? "done" : account.status === "fetching" ? "active" : "pending",
+  }));
+  const steps = accountSteps.length
+    ? accountSteps
+    : [{ label: `Planning ${accounts} account${accounts === 1 ? "" : "s"}`, state: "active" }];
+
+  steps.push({ label: `${fetched} transaction${fetched === 1 ? "" : "s"} retrieved so far`, state: fetched ? "done" : "active" });
 
   if (categorised) {
     steps.push({ label: `${categorised} transaction${categorised === 1 ? "" : "s"} auto categorised`, state: "done" });
   }
-
-  steps.push({ label: message, state: status.status === "failed" ? "error" : "active" });
 
   renderSyncPanel({
     title: status.status === "started" ? "Starting bank sync" : "Fetching transactions",
@@ -972,6 +982,23 @@ function renderSyncStatus(status) {
     summary: message,
     steps,
   });
+}
+
+function formatSyncAccountStep(account) {
+  const localName = getFriendlyAccountName(account.accountId);
+  const accountName =
+    (localName && localName !== account.accountId ? localName : "") || account.accountName || account.accountId || "Unknown account";
+  const dateFrom = account.dateFrom || "?";
+  const dateTo = account.dateTo || "?";
+  const retrieved = Number(account.retrieved || 0);
+
+  if (account.status === "pending") {
+    return `${accountName}: waiting · ${dateFrom} → ${dateTo}`;
+  }
+  if (account.status === "fetching") {
+    return `${accountName}: fetching · ${dateFrom} → ${dateTo}`;
+  }
+  return `${accountName}: ${dateFrom} → ${dateTo} · ${retrieved} retrieved`;
 }
 
 function renderSyncPanel({ title, badge, summary, steps }) {

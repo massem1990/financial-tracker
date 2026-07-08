@@ -9,7 +9,7 @@ import urllib.parse
 import urllib.request
 from datetime import date, datetime, timedelta, timezone
 
-from categorizer import categorize_transaction
+from categorizer import ACCOUNT_NAMES, categorize_transaction
 
 
 BASE_URL = "https://bankaccountdata.gocardless.com/api/v2"
@@ -25,46 +25,74 @@ def handler(event, context):
         date_to = event.get("date_to") or event.get("dateTo") or os.getenv("DATE_TO") or date.today().isoformat()
         account_ids = get_account_ids(event)
         update_sync_status(sync_id, "running", "Planning sync window", account_count=len(account_ids))
-        sync_plan = build_sync_plan(event, account_ids, date_to, write_database and not dry_run)
+        sync_plan = build_sync_plan(event, account_ids, date_to, has_database_config())
         date_from = sync_plan["dateFrom"]
 
         if dry_run:
             rows = sample_transactions(date_from, date_to)
             raw_payload = {"mode": "dry_run", "transactions": rows, "syncPlan": sync_plan}
-            per_account_stats = [{"accountId": "dry-run-account", "dateFrom": date_from, "dateTo": date_to, "retrieved": len(rows)}]
+            per_account_stats = [
+                {
+                    "accountId": "dry-run-account",
+                    "accountName": "Dry run account",
+                    "dateFrom": date_from,
+                    "dateTo": date_to,
+                    "retrieved": len(rows),
+                    "status": "complete",
+                }
+            ]
         else:
             token = get_access_token()
             rows = []
             raw_payload = {"mode": "live", "accounts": {}, "syncPlan": sync_plan}
-            per_account_stats = []
+            per_account_stats = [
+                {
+                    **sync_plan["accounts"][account_id],
+                    "accountId": account_id,
+                    "retrieved": 0,
+                    "booked": 0,
+                    "pending": 0,
+                    "status": "pending",
+                }
+                for account_id in account_ids
+            ]
             for index, account_id in enumerate(account_ids, start=1):
+                account_stats = per_account_stats[index - 1]
+                account_stats["status"] = "fetching"
                 update_sync_status(
                     sync_id,
                     "running",
-                    f"Fetching account {index} of {len(account_ids)}",
+                    f"Fetching {account_stats['accountName']} ({index} of {len(account_ids)})",
                     account_count=len(account_ids),
                     transaction_count=len(rows),
                     accounts=per_account_stats,
                 )
-                account_date_from = sync_plan["accounts"].get(account_id, {}).get("dateFrom", date_from)
-                payload = fetch_account_transactions(token, account_id, account_date_from, date_to)
+                account_date_from = account_stats["dateFrom"]
+                account_date_to = account_stats["dateTo"]
+                payload = fetch_account_transactions(token, account_id, account_date_from, account_date_to)
                 account_rows = normalize_transactions(account_id, payload)
                 raw_payload["accounts"][account_id] = {
                     "dateFrom": account_date_from,
-                    "dateTo": date_to,
+                    "dateTo": account_date_to,
                     "response": payload,
                 }
-                per_account_stats.append(
+                account_stats.update(
                     {
-                        "accountId": account_id,
-                        "dateFrom": account_date_from,
-                        "dateTo": date_to,
                         "retrieved": len(account_rows),
                         "booked": len(payload.get("transactions", {}).get("booked", [])),
                         "pending": len(payload.get("transactions", {}).get("pending", [])),
+                        "status": "complete",
                     }
                 )
                 rows.extend(account_rows)
+                update_sync_status(
+                    sync_id,
+                    "running",
+                    f"Fetched {account_stats['accountName']}",
+                    account_count=len(account_ids),
+                    transaction_count=len(rows),
+                    accounts=per_account_stats,
+                )
 
         update_sync_status(
             sync_id,
@@ -87,7 +115,9 @@ def handler(event, context):
             accounts=per_account_stats,
         )
         database_result = upsert_transactions(rows, raw_payload, date_from, date_to) if write_database else None
-        metadata = bump_app_state("gocardless-sync") if write_database and rows else None
+        if not dry_run and write_database:
+            save_sync_cursors(account_ids, date_to)
+        metadata = bump_app_state("gocardless-sync") if write_database else None
 
         result = {
             "ok": True,
@@ -98,6 +128,7 @@ def handler(event, context):
             "dateTo": date_to,
             "accountCount": len(account_ids),
             "transactionCount": len(rows),
+            "syncPlan": sync_plan,
             "categorization": categorization_stats,
             "accounts": per_account_stats,
             "written": written,
@@ -119,30 +150,46 @@ def build_sync_plan(event, account_ids, date_to, use_database):
             "dateFrom": explicit_date_from,
             "dateTo": date_to,
             "overlapDays": 0,
-            "accounts": {account_id: {"dateFrom": explicit_date_from, "dateTo": date_to} for account_id in account_ids},
+            "accounts": {
+                account_id: {
+                    "dateFrom": explicit_date_from,
+                    "dateTo": date_to,
+                    "accountName": ACCOUNT_NAMES.get(account_id) or short_account_id(account_id),
+                    "source": "explicit",
+                }
+                for account_id in account_ids
+            },
         }
 
-    overlap_days = int(event.get("overlap_days") or event.get("overlapDays") or os.getenv("SYNC_OVERLAP_DAYS", "14"))
+    overlap_days = int(event.get("overlap_days") or event.get("overlapDays") or os.getenv("SYNC_OVERLAP_DAYS", "0"))
     initial_lookback_days = int(
         event.get("initial_lookback_days") or event.get("initialLookbackDays") or os.getenv("INITIAL_LOOKBACK_DAYS", "90")
     )
     fallback_from = shift_iso_date(date_to, -initial_lookback_days)
     latest_by_account = fetch_latest_dates_by_account() if use_database else {}
+    sync_cursors = fetch_sync_cursors()
 
     accounts = {}
     for account_id in account_ids:
-        latest_date = latest_by_account.get(account_id)
-        account_date_from = shift_iso_date(latest_date, -overlap_days) if latest_date else fallback_from
+        latest = latest_by_account.get(account_id, {})
+        latest_date = latest.get("latestDate")
+        cursor_date = sync_cursors.get(account_id, {}).get("lastSyncedTo")
+        baseline_date = latest_date or cursor_date
+        account_date_from = shift_iso_date(baseline_date, -overlap_days) if baseline_date else fallback_from
+        account_date_from = min(account_date_from, date_to)
         accounts[account_id] = {
             "dateFrom": account_date_from,
             "dateTo": date_to,
             "latestStoredDate": latest_date,
-            "usedFallback": latest_date is None,
+            "lastSyncedTo": cursor_date,
+            "source": "latest-transaction" if latest_date else "last-sync-cursor" if cursor_date else "initial-lookback",
+            "usedFallback": baseline_date is None,
+            "accountName": ACCOUNT_NAMES.get(account_id) or latest.get("accountName") or short_account_id(account_id),
         }
 
     all_dates = [account["dateFrom"] for account in accounts.values()] or [fallback_from]
     return {
-        "strategy": "latest-stored-date-with-overlap" if use_database else "fallback-lookback",
+        "strategy": "per-account-latest-date",
         "dateFrom": min(all_dates),
         "dateTo": date_to,
         "overlapDays": overlap_days,
@@ -151,8 +198,12 @@ def build_sync_plan(event, account_ids, date_to, use_database):
     }
 
 
+def has_database_config():
+    return all(os.getenv(name) for name in ["DB_CLUSTER_ARN", "DB_SECRET_ARN", "DB_NAME"])
+
+
 def fetch_latest_dates_by_account():
-    if not all(os.getenv(name) for name in ["DB_CLUSTER_ARN", "DB_SECRET_ARN", "DB_NAME"]):
+    if not has_database_config():
         return {}
 
     import boto3
@@ -164,7 +215,10 @@ def fetch_latest_dates_by_account():
         os.getenv("DB_SECRET_ARN"),
         os.getenv("DB_NAME"),
         """
-        SELECT account_id, MAX(COALESCE(booking_date, value_date))::text AS latest_date
+        SELECT
+          account_id,
+          MAX(COALESCE(booking_date, value_date))::text AS latest_date,
+          MAX(account_friendly_name) AS account_name
         FROM transactions
         WHERE provider = 'gocardless'
         GROUP BY account_id
@@ -174,9 +228,56 @@ def fetch_latest_dates_by_account():
     for record in result.get("records", []):
         account_id = read_value(record[0])
         latest_date = read_value(record[1])
+        account_name = read_value(record[2])
         if account_id and latest_date:
-            latest[account_id] = latest_date
+            latest[account_id] = {"latestDate": latest_date, "accountName": account_name}
     return latest
+
+
+def fetch_sync_cursors():
+    bucket = os.getenv("APP_STATE_BUCKET")
+    if not bucket:
+        return {}
+
+    import boto3
+
+    key = os.getenv("GOCARDLESS_CURSOR_KEY", "metadata/gocardless-cursors.json")
+    try:
+        item = boto3.client("s3").get_object(Bucket=bucket, Key=key)
+        payload = json.loads(item["Body"].read().decode("utf-8"))
+        return payload.get("accounts", {}) if isinstance(payload, dict) else {}
+    except Exception:
+        return {}
+
+
+def save_sync_cursors(account_ids, date_to):
+    bucket = os.getenv("APP_STATE_BUCKET")
+    if not bucket:
+        return
+
+    import boto3
+
+    key = os.getenv("GOCARDLESS_CURSOR_KEY", "metadata/gocardless-cursors.json")
+    accounts = fetch_sync_cursors()
+    for account_id in account_ids:
+        accounts[account_id] = {"lastSyncedTo": date_to}
+
+    payload = {
+        "updatedAt": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+        "accounts": accounts,
+    }
+    boto3.client("s3").put_object(
+        Bucket=bucket,
+        Key=key,
+        Body=json.dumps(payload).encode("utf-8"),
+        ContentType="application/json",
+        CacheControl="no-store, no-cache, max-age=0, must-revalidate",
+    )
+
+
+def short_account_id(account_id):
+    text = str(account_id or "")
+    return f"Account {text[:8]}" if text else "Unknown account"
 
 
 def shift_iso_date(value, days):
@@ -301,7 +402,7 @@ def transactions_to_csv(rows):
 
 def upsert_transactions(rows, raw_payload, date_from, date_to):
     if not rows:
-        return {"upserted": 0, "syncRunId": None}
+        return {"upserted": 0, "new": 0, "refreshed": 0, "syncRunId": None}
 
     import boto3
 
@@ -310,12 +411,46 @@ def upsert_transactions(rows, raw_payload, date_from, date_to):
     secret_arn = require_env("DB_SECRET_ARN")
     database = require_env("DB_NAME")
 
+    transaction_keys = {provider_transaction_key(row) for row in rows}
+    existing_keys = fetch_existing_transaction_keys(client, resource_arn, secret_arn, database, transaction_keys)
     sync_run_id = create_sync_run(client, resource_arn, secret_arn, database, date_from, date_to, raw_payload)
     ensure_accounts(client, resource_arn, secret_arn, database, rows)
     upsert_transaction_rows(client, resource_arn, secret_arn, database, rows, sync_run_id)
     complete_sync_run(client, resource_arn, secret_arn, database, sync_run_id, len(rows))
 
-    return {"upserted": len(rows), "syncRunId": sync_run_id}
+    new_count = len(transaction_keys - existing_keys)
+    refreshed_count = len(transaction_keys & existing_keys)
+    return {
+        "upserted": len(transaction_keys),
+        "new": new_count,
+        "refreshed": refreshed_count,
+        "syncRunId": sync_run_id,
+    }
+
+
+def fetch_existing_transaction_keys(client, resource_arn, secret_arn, database, transaction_keys):
+    existing = set()
+    for key_chunk in chunks(sorted(transaction_keys), 500):
+        result = execute_statement(
+            client,
+            resource_arn,
+            secret_arn,
+            database,
+            """
+            SELECT provider_transaction_key
+            FROM transactions
+            WHERE provider = 'gocardless'
+              AND provider_transaction_key IN (
+                SELECT jsonb_array_elements_text(CAST(:transaction_keys AS jsonb))
+              )
+            """,
+            [string_param("transaction_keys", json.dumps(key_chunk))],
+        )
+        for record in result.get("records", []):
+            key = read_value(record[0])
+            if key:
+                existing.add(key)
+    return existing
 
 
 def create_sync_run(client, resource_arn, secret_arn, database, date_from, date_to, raw_payload):
