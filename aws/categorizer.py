@@ -11,6 +11,11 @@ ACCOUNT_NAMES = {
     "abd3956b-20ed-4b80-89f3-11a4c231167d": "Mahmoud Personal",
     "57c1345d-e265-46f0-bb15-176cf6aa6d4b": "Shopping Needs",
     "1a8ad7e2-6267-47c1-855a-b76300b36b99": "Shopping Wants",
+    "4a6baa7b-cbd4-43b4-94ef-c10db0c29fc5": "Alice Personal",
+    "6b6dce78-7562-457b-9083-f49600814485": "Mahmoud Revolut EUR",
+    "a376e0f1-1484-476a-b37a-7b95b42273cf": "Alice Revolut RON",
+    "c7586325-594a-4019-b363-2d58a592434c": "Alice Revolut EUR",
+    "ceb237a4-362c-456d-8e16-4d2a5d321466": "Mahmoud Revolut RON",
 }
 
 

@@ -400,6 +400,12 @@ elements.fetchTransactionsButton.addEventListener("click", async () => {
   await runGoCardlessSync();
 });
 
+elements.syncBadge.addEventListener("click", () => {
+  if (elements.syncBadge.dataset.dismissible === "true") {
+    elements.syncPanel.classList.add("hidden");
+  }
+});
+
 if (elements.downloadButton) {
   elements.downloadButton.addEventListener("click", () => {
     downloadCategorizedCsv();
@@ -1005,6 +1011,10 @@ function renderSyncPanel({ title, badge, summary, steps }) {
   elements.syncPanel.classList.remove("hidden");
   elements.syncTitle.textContent = title;
   elements.syncBadge.textContent = badge;
+  const dismissible = badge === "Done";
+  elements.syncBadge.disabled = !dismissible;
+  elements.syncBadge.dataset.dismissible = String(dismissible);
+  elements.syncBadge.setAttribute("aria-label", dismissible ? "Dismiss completed bank sync" : `Bank sync status: ${badge}`);
   elements.syncSummary.textContent = summary;
   elements.syncSteps.replaceChildren(
     ...steps.map((step) => {

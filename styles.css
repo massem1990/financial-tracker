@@ -972,7 +972,7 @@ h2 {
   line-height: 1.45;
 }
 
-.sync-panel-header span {
+.sync-badge {
   flex: 0 0 auto;
   padding: 6px 9px;
   border: 1px solid rgba(34, 199, 173, 0.3);
@@ -981,6 +981,15 @@ h2 {
   color: var(--brand-dark);
   font-size: 0.78rem;
   font-weight: 900;
+}
+
+.sync-badge:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+.sync-badge:not(:disabled) {
+  cursor: pointer;
 }
 
 .sync-steps {

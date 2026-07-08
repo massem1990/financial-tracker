@@ -14,5 +14,25 @@
   "1a8ad7e2-6267-47c1-855a-b76300b36b99": {
     "iban": "NL24 ABNA 0124 1032 86",
     "name": "Shopping Wants"
+  },
+  "4a6baa7b-cbd4-43b4-94ef-c10db0c29fc5": {
+    "iban": "NL31 ABNA 0530 1685 37",
+    "name": "Alice Personal"
+  },
+  "6b6dce78-7562-457b-9083-f49600814485": {
+    "iban": "NL08 REVO 6270 4699 00",
+    "name": "Mahmoud Revolut EUR"
+  },
+  "a376e0f1-1484-476a-b37a-7b95b42273cf": {
+    "iban": "RO74 REVO 0000 1390 5915 2540",
+    "name": "Alice Revolut RON"
+  },
+  "c7586325-594a-4019-b363-2d58a592434c": {
+    "iban": "NL28 REVO 1240 9067 29",
+    "name": "Alice Revolut EUR"
+  },
+  "ceb237a4-362c-456d-8e16-4d2a5d321466": {
+    "iban": "RO09 REVO 0000 1922 4066 1509",
+    "name": "Mahmoud Revolut RON"
   }
 }
