@@ -288,11 +288,11 @@ def categorize_rows(rows):
     stats = {"autoCategorized": 0, "shortDescriptions": 0, "travelTags": 0}
     categorized_rows = []
     for row in rows:
-        had_category = bool(row.get("proprietaryBankTransactionCode"))
+        had_category = bool(row.get("category"))
         had_short_description = bool(row.get("shortDescription"))
         had_travel_tag = bool(row.get("travelTag"))
         categorized = categorize_transaction(row, fill_missing_only=True)
-        if not had_category and categorized.get("proprietaryBankTransactionCode"):
+        if not had_category and categorized.get("category"):
             stats["autoCategorized"] += 1
         if not had_short_description and categorized.get("shortDescription"):
             stats["shortDescriptions"] += 1

@@ -59,7 +59,7 @@ def categorize_transaction(row, fill_missing_only=True):
         if keyword in description and amount_text in amount_categories:
             last_category = amount_categories[amount_text]
 
-    if last_category and should_fill(result.get("proprietaryBankTransactionCode"), fill_missing_only):
+    if last_category:
         result["proprietaryBankTransactionCode"] = last_category
         result["category"] = last_category
     if pending_short and should_fill(result.get("shortDescription"), fill_missing_only):
