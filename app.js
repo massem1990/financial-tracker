@@ -143,6 +143,7 @@ const elements = {
   uncategorizedView: document.querySelector("#uncategorizedView"),
   transactionsView: document.querySelector("#transactionsView"),
   settingsView: document.querySelector("#settingsView"),
+  wakeDatabasesButton: document.querySelector("#wakeDatabasesButton"),
   fetchTransactionsButton: document.querySelector("#fetchTransactionsButton"),
   latestAccountsList: document.querySelector("#latestAccountsList"),
   latestAccountsScope: document.querySelector("#latestAccountsScope"),
@@ -398,6 +399,10 @@ elements.refreshButton.addEventListener("click", () => {
 
 elements.fetchTransactionsButton.addEventListener("click", async () => {
   await runGoCardlessSync();
+});
+
+elements.wakeDatabasesButton.addEventListener("click", async () => {
+  await wakeDatabases();
 });
 
 elements.syncBadge.addEventListener("click", () => {
@@ -908,6 +913,28 @@ async function runGoCardlessSync() {
     setLoading(false);
     elements.fetchTransactionsButton.disabled = false;
     elements.fetchTransactionsButton.textContent = "Fetch";
+  }
+}
+
+async function wakeDatabases() {
+  if (!CONFIG.apiBaseUrl) {
+    setStatus("Database wake-up needs the AWS backend.");
+    return;
+  }
+
+  elements.wakeDatabasesButton.disabled = true;
+  setStatus("");
+  setLoading(true, "Waking databases", "Aurora is finding the light switch. This may take a few seconds.");
+
+  try {
+    const result = await apiRequest("/wake-databases", { method: "POST", body: {} });
+    const duration = Number(result.durationSeconds || 0);
+    setStatus(`Aurora is awake${duration ? ` after ${duration} seconds` : ""}. Your editing session is ready.`);
+  } catch (error) {
+    setStatus(`Could not wake the databases. ${friendlyErrorMessage(error)}`);
+  } finally {
+    setLoading(false);
+    elements.wakeDatabasesButton.disabled = false;
   }
 }
 

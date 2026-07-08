@@ -35,7 +35,10 @@
           <h1>Finances</h1>
           <p class="last-sync-label" id="lastSyncLabel">Last sync not yet</p>
         </div>
-        <button class="primary-button fetch-button" id="fetchTransactionsButton" type="button">Fetch</button>
+        <div class="top-bar-actions">
+          <button class="wake-button" id="wakeDatabasesButton" type="button" title="Wake databases" aria-label="Wake databases">⏰</button>
+          <button class="primary-button fetch-button" id="fetchTransactionsButton" type="button">Fetch</button>
+        </div>
       </header>
 
       <section class="controls" aria-label="Transaction filters">

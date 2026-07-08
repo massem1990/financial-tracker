@@ -1,5 +1,6 @@
 import json
 import os
+import time
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -24,6 +25,9 @@ def handler(event, context):
 
         if path.endswith("/health"):
             return response(200, {"ok": True, "service": "financial-tracker-api"})
+
+        if path.endswith("/wake-databases") and method == "POST":
+            return response(200, wake_databases())
 
         if path.endswith("/categorization-rules") and method == "GET":
             return response(200, {"rules": fetch_categorization_rules()})
@@ -91,6 +95,35 @@ def is_authorized(event):
 
 def normalize_headers(headers):
     return {key.lower(): value for key, value in headers.items()}
+
+
+def wake_databases():
+    started_at = time.monotonic()
+    retry_delays = [0, 2, 3, 4, 5, 6]
+    last_error = None
+
+    for attempt, delay_seconds in enumerate(retry_delays, start=1):
+        if delay_seconds:
+            time.sleep(delay_seconds)
+        try:
+            execute_statement("SELECT 1 AS awake", [])
+            return {
+                "ok": True,
+                "databases": [{"name": "Aurora", "status": "awake"}],
+                "attempts": attempt,
+                "durationSeconds": round(time.monotonic() - started_at, 1),
+            }
+        except Exception as error:
+            if not is_database_waking_error(error):
+                raise
+            last_error = error
+
+    raise RuntimeError(f"Aurora did not wake before the timeout: {last_error}")
+
+
+def is_database_waking_error(error):
+    text = str(error).lower()
+    return "databaseresumingexception" in text or "resuming after being auto-paused" in text
 
 
 def fetch_transactions(params):

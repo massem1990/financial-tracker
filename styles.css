@@ -558,6 +558,29 @@ h2 {
   padding: 0 16px;
 }
 
+.top-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wake-button {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 1px solid rgba(242, 184, 75, 0.48);
+  border-radius: 8px;
+  background: rgba(242, 184, 75, 0.1);
+  color: #f2c766;
+  font-size: 1.05rem;
+}
+
+.wake-button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
 .account-latest-list {
   display: grid;
   gap: 10px;
