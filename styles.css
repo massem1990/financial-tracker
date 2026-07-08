@@ -1307,6 +1307,10 @@ h2 {
   font-weight: 800;
 }
 
+.rule-run-panel {
+  margin: 4px 0 0;
+}
+
 .rules-list {
   display: grid;
   gap: 12px;

@@ -296,7 +296,10 @@
                 <h3>Categorisation rules</h3>
                 <p class="helper-text">Rules apply during GoCardless sync. Use them to auto-place matching transactions into categories.</p>
               </div>
-              <button class="secondary-button" id="reloadRulesButton" type="button">Reload</button>
+              <div class="section-actions">
+                <button class="primary-button" id="applyRulesButton" type="button">Run rules</button>
+                <button class="secondary-button" id="reloadRulesButton" type="button">Reload</button>
+              </div>
             </div>
 
             <label class="auth-field">
@@ -339,6 +342,18 @@
 
             <div class="rules-summary" id="rulesSummary">No rules loaded yet.</div>
             <ol class="rules-list" id="rulesList"></ol>
+
+            <section class="sync-panel rule-run-panel hidden" id="ruleRunPanel" aria-live="polite">
+              <div class="sync-panel-header">
+                <div>
+                  <p class="eyebrow">Rule run</p>
+                  <h3 id="ruleRunTitle">Applying categorisation rules</h3>
+                </div>
+                <button class="sync-badge" id="ruleRunDismissButton" type="button" disabled>Running</button>
+              </div>
+              <p id="ruleRunSummary">Checking uncategorized transactions.</p>
+              <ol class="sync-steps" id="ruleRunSteps"></ol>
+            </section>
           </section>
         </div>
       </section>

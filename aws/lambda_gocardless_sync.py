@@ -22,6 +22,9 @@ def handler(event, context):
     write_database = event_bool(event, "write_database", env_bool("WRITE_DATABASE", default=False))
 
     try:
+        if event.get("action") == "recategorize_uncategorized":
+            return recategorize_uncategorized(sync_id)
+
         date_to = event.get("date_to") or event.get("dateTo") or os.getenv("DATE_TO") or date.today().isoformat()
         account_ids = get_account_ids(event)
         update_sync_status(sync_id, "running", "Planning sync window", account_count=len(account_ids))
@@ -140,6 +143,124 @@ def handler(event, context):
     except Exception as error:
         update_sync_status(sync_id, "failed", str(error), error_type=type(error).__name__)
         raise
+
+
+def recategorize_uncategorized(sync_id):
+    import boto3
+
+    client = boto3.client("rds-data")
+    resource_arn = require_env("DB_CLUSTER_ARN")
+    secret_arn = require_env("DB_SECRET_ARN")
+    database = require_env("DB_NAME")
+
+    update_sync_status(sync_id, "running", "Loading uncategorized transactions")
+    result = execute_statement(
+        client,
+        resource_arn,
+        secret_arn,
+        database,
+        """
+        SELECT
+          transactions.id,
+          transactions.description,
+          transactions.amount::text,
+          transactions.proprietary_bank_transaction_code,
+          transactions.short_description,
+          transactions.travel_tag
+        FROM transactions
+        LEFT JOIN transaction_category_overrides category_override
+          ON category_override.transaction_id = transactions.id
+        WHERE transactions.provider = 'gocardless'
+          AND category_override.transaction_id IS NULL
+          AND NOT EXISTS (
+            SELECT 1
+            FROM categories
+            WHERE categories.name = transactions.proprietary_bank_transaction_code
+          )
+        ORDER BY transactions.id
+        """,
+    )
+
+    records = result.get("records", [])
+    scanned = len(records)
+    updates = []
+    category_counts = {}
+    update_sync_status(
+        sync_id,
+        "running",
+        "Applying categorisation rules",
+        scanned=scanned,
+        matched=0,
+        updated=0,
+    )
+
+    for record in records:
+        transaction_id = read_value(record[0])
+        row = {
+            "description": read_value(record[1]) or "",
+            "amount": read_value(record[2]) or "",
+            "proprietaryBankTransactionCode": read_value(record[3]) or "",
+            "shortDescription": read_value(record[4]) or "",
+            "travelTag": read_value(record[5]) or "",
+        }
+        categorized = categorize_transaction(row, fill_missing_only=True)
+        category = categorized.get("category")
+        if not transaction_id or not category:
+            continue
+        updates.append(
+            {
+                "id": transaction_id,
+                "category": category,
+                "shortDescription": categorized.get("shortDescription") or "",
+                "travelTag": categorized.get("travelTag") or "",
+            }
+        )
+        category_counts[category] = category_counts.get(category, 0) + 1
+
+    matched = len(updates)
+    if updates:
+        update_sync_status(
+            sync_id,
+            "running",
+            "Writing matched categories",
+            scanned=scanned,
+            matched=matched,
+            updated=0,
+            categoryCounts=category_counts,
+        )
+        for update_chunk in chunks(updates, 500):
+            execute_statement(
+                client,
+                resource_arn,
+                secret_arn,
+                database,
+                """
+                UPDATE transactions
+                SET
+                  proprietary_bank_transaction_code = updates.category,
+                  short_description = COALESCE(transactions.short_description, NULLIF(updates.short_description, '')),
+                  travel_tag = COALESCE(transactions.travel_tag, NULLIF(updates.travel_tag, '')),
+                  updated_at = now()
+                FROM jsonb_to_recordset(CAST(:updates AS jsonb))
+                  AS updates(id bigint, category text, short_description text, travel_tag text)
+                WHERE transactions.id = updates.id
+                """,
+                [string_param("updates", json.dumps(update_chunk))],
+            )
+
+    metadata = bump_app_state("categorization-rules-applied") if updates else None
+    result_payload = {
+        "ok": True,
+        "jobId": sync_id,
+        "scanned": scanned,
+        "matched": matched,
+        "updated": matched,
+        "remaining": scanned - matched,
+        "categoryCounts": category_counts,
+        "metadata": metadata,
+    }
+    update_sync_status(sync_id, "complete", "Categorisation rules applied", result=result_payload)
+    return result_payload
 
 
 def build_sync_plan(event, account_ids, date_to, use_database):

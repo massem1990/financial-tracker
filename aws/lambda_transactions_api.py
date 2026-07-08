@@ -32,6 +32,13 @@ def handler(event, context):
         if path.endswith("/categorization-rules") and method == "GET":
             return response(200, {"rules": fetch_categorization_rules()})
 
+        if path.endswith("/categorization-rules/apply") and method == "POST":
+            return response(202, run_categorization_rules())
+
+        categorization_job_id = path_param_after(path, "/categorization-rules/apply/")
+        if categorization_job_id and method == "GET":
+            return response(200, fetch_sync_status(categorization_job_id))
+
         if path.endswith("/categorization-rules") and method == "PUT":
             rules = save_categorization_rules(read_json_body(event))
             return response(200, {"rules": rules, "metadata": bump_app_state("categorization-rules-updated")})
@@ -238,6 +245,30 @@ def run_gocardless_sync(payload):
 
     metadata = body.get("metadata") or fetch_app_state_safely()
     return {"ok": True, "sync": body, "metadata": metadata}
+
+
+def run_categorization_rules():
+    import boto3
+
+    function_name = os.getenv("GOCARDLESS_SYNC_FUNCTION", "financial-tracker-gocardless-sync")
+    job_id = f"rules-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}-{uuid4().hex[:8]}"
+    status = {
+        "syncId": job_id,
+        "status": "started",
+        "message": "Categorisation job started",
+    }
+    write_sync_status(status)
+    boto3.client("lambda").invoke(
+        FunctionName=function_name,
+        InvocationType="Event",
+        Payload=json.dumps(
+            {
+                "sync_id": job_id,
+                "action": "recategorize_uncategorized",
+            }
+        ).encode("utf-8"),
+    )
+    return {"ok": True, "jobId": job_id, "status": status}
 
 
 def has_any(payload, keys):

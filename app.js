@@ -200,7 +200,13 @@ const elements = {
   csvRefreshButton: document.querySelector("#csvRefreshButton"),
   clearUploadButton: document.querySelector("#clearUploadButton"),
   resetCategoriesButton: document.querySelector("#resetCategoriesButton"),
+  applyRulesButton: document.querySelector("#applyRulesButton"),
   reloadRulesButton: document.querySelector("#reloadRulesButton"),
+  ruleRunPanel: document.querySelector("#ruleRunPanel"),
+  ruleRunTitle: document.querySelector("#ruleRunTitle"),
+  ruleRunSummary: document.querySelector("#ruleRunSummary"),
+  ruleRunSteps: document.querySelector("#ruleRunSteps"),
+  ruleRunDismissButton: document.querySelector("#ruleRunDismissButton"),
   ruleSearchInput: document.querySelector("#ruleSearchInput"),
   rulesSummary: document.querySelector("#rulesSummary"),
   rulesList: document.querySelector("#rulesList"),
@@ -427,6 +433,16 @@ if (elements.settingsButton) {
 
 elements.reloadRulesButton.addEventListener("click", async () => {
   await loadCategorizationRules({ force: true });
+});
+
+elements.applyRulesButton.addEventListener("click", async () => {
+  await runCategorizationRules();
+});
+
+elements.ruleRunDismissButton.addEventListener("click", () => {
+  if (!elements.ruleRunDismissButton.disabled) {
+    elements.ruleRunPanel.classList.add("hidden");
+  }
 });
 
 elements.ruleSearchInput.addEventListener("input", () => {
@@ -2886,6 +2902,124 @@ async function loadCategorizationRules({ force = false } = {}) {
   } catch (error) {
     elements.rulesSummary.textContent = `Could not load rules. ${friendlyErrorMessage(error)}`;
   }
+}
+
+async function runCategorizationRules() {
+  if (!CONFIG.apiBaseUrl) {
+    setStatus("Running categorisation rules needs the AWS backend.");
+    return;
+  }
+
+  elements.applyRulesButton.disabled = true;
+  renderRuleRunPanel({
+    title: "Applying categorisation rules",
+    badge: "Running",
+    summary: "Starting a background scan of uncategorized transactions.",
+    steps: [{ label: "Preparing rule run", state: "active" }],
+  });
+
+  try {
+    const started = await apiRequest("/categorization-rules/apply", { method: "POST", body: {} });
+    const result = await pollCategorizationRules(started.jobId);
+    renderRuleRunResult(result);
+    if (result.metadata) {
+      await updateLocalCacheFromWrite(result.metadata);
+      await loadAppData({
+        forceRefresh: true,
+        title: "Loading categorized transactions",
+        message: "Refreshing the local cache with the newly categorized rows.",
+      });
+      renderRuleRunResult(result);
+    }
+  } catch (error) {
+    renderRuleRunPanel({
+      title: "Rule run failed",
+      badge: "Error",
+      summary: friendlyErrorMessage(error),
+      steps: [{ label: "Could not apply categorisation rules", state: "error" }],
+      dismissible: true,
+    });
+  } finally {
+    elements.applyRulesButton.disabled = false;
+  }
+}
+
+async function pollCategorizationRules(jobId) {
+  if (!jobId) {
+    throw new Error("The rule run did not return a job id.");
+  }
+
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    const status = await apiRequest(`/categorization-rules/apply/${encodeURIComponent(jobId)}`);
+    renderRuleRunStatus(status);
+    if (status.status === "complete") {
+      return status.result || status;
+    }
+    if (status.status === "failed") {
+      const error = new Error(status.message || "Categorisation rule run failed.");
+      error.type = status.error_type || status.errorType || "";
+      throw error;
+    }
+    await delay(2000);
+  }
+
+  throw new Error("The categorisation job is still running. Try again in a minute.");
+}
+
+function renderRuleRunStatus(status) {
+  const scanned = Number(status.scanned || 0);
+  const matched = Number(status.matched || 0);
+  const updated = Number(status.updated || 0);
+  renderRuleRunPanel({
+    title: "Applying categorisation rules",
+    badge: "Running",
+    summary: status.message || "Checking uncategorized transactions.",
+    steps: [
+      { label: `${scanned} uncategorized transaction${scanned === 1 ? "" : "s"} scanned`, state: scanned ? "done" : "active" },
+      { label: `${matched} rule match${matched === 1 ? "" : "es"} found`, state: matched ? "done" : "active" },
+      { label: `${updated} transaction${updated === 1 ? "" : "s"} updated`, state: updated ? "done" : "active" },
+    ],
+  });
+}
+
+function renderRuleRunResult(result) {
+  const scanned = Number(result.scanned || 0);
+  const matched = Number(result.matched || 0);
+  const updated = Number(result.updated || 0);
+  const remaining = Number(result.remaining || 0);
+  const categorySteps = Object.entries(result.categoryCounts || {})
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([category, count]) => ({ label: `${category}: ${count}`, state: "done" }));
+
+  renderRuleRunPanel({
+    title: "Categorisation complete",
+    badge: "Done",
+    summary: `${updated} of ${scanned} uncategorized transactions were updated.`,
+    steps: [
+      { label: `${scanned} uncategorized transaction${scanned === 1 ? "" : "s"} scanned`, state: "done" },
+      { label: `${matched} rule match${matched === 1 ? "" : "es"} found`, state: "done" },
+      { label: `${updated} transaction${updated === 1 ? "" : "s"} updated`, state: "done" },
+      { label: `${remaining} remain uncategorized`, state: "done" },
+      ...categorySteps,
+    ],
+    dismissible: true,
+  });
+}
+
+function renderRuleRunPanel({ title, badge, summary, steps, dismissible = false }) {
+  elements.ruleRunPanel.classList.remove("hidden");
+  elements.ruleRunTitle.textContent = title;
+  elements.ruleRunDismissButton.textContent = badge;
+  elements.ruleRunDismissButton.disabled = !dismissible;
+  elements.ruleRunSummary.textContent = summary;
+  elements.ruleRunSteps.replaceChildren(
+    ...steps.map((step) => {
+      const item = document.createElement("li");
+      item.className = `sync-step ${step.state || "done"}`;
+      item.textContent = step.label;
+      return item;
+    })
+  );
 }
 
 function normalizeRules(rules = {}) {
